@@ -73,6 +73,44 @@ jobs:
         run: |
           python -c "import os, sys; required = ('SENDER_EMAIL', 'SENDER_APP_PASSWORD', 'RECIPIENT_EMAIL'); missing = [key for key in required if not os.environ.get(key, '').strip()]; print('Email configuration: ' + ('missing required secrets' if missing else 'all required secrets present')); sys.exit(1 if missing else 0)"
 
+      - name: Diagnose SMTP configuration
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_email == true }}
+        env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: "587"
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_APP_PASSWORD: ${{ secrets.SENDER_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from src.email_sender import get_email_config
+
+          print("Checking Gmail SMTP configuration...")
+
+          try:
+              config = get_email_config()
+
+          except ValueError as error:
+              message = str(error)
+
+              if "Missing environment variable" in message:
+                  print("FAILED: A required variable is missing.")
+              elif "placeholder values" in message:
+                  print("FAILED: A secret still contains a placeholder.")
+              elif "Invalid email address" in message:
+                  print("FAILED: An email address has invalid formatting.")
+              elif "SMTP_PORT" in message or "SMTP port" in message:
+                  print("FAILED: Invalid SMTP port.")
+              else:
+                  print("FAILED: Other configuration validation error.")
+
+              sys.exit(1)
+
+          print("PASSED: All required configuration values passed validation.")
+          PY
+
       - name: Send test notification email
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_email == true }}
         env:
