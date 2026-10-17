@@ -161,6 +161,165 @@ These limitations will be addressed during subsequent phases.
 - Credentials are excluded from the repository.
 - Existing application files remain functional.
 
+### Phase 3 — RSS Opportunity Collection
+
+The system now retrieves technology announcements from approved
+public RSS feeds and classifies possible technology opportunities.
+
+#### Implemented Features
+
+- RSS and Atom feed parsing using feedparser
+- Centralized YAML source configuration
+- An explicit allowlist of approved feed URLs
+- Multi-source collection with independent error handling
+- Configurable source enable/disable controls
+- Configurable result limits per source
+- Normalized announcement records
+- UTC publication date formatting
+- Rule-based opportunity classification
+- Keyword-based detection of certification voucher announcements
+- Keyword-based detection of technology events
+- Keyword-based detection of hackathons
+- Preservation of original source URLs
+- Explicit unverified classification results
+- Terminal previews of collected announcements
+- GitHub Actions RSS collection previews
+- Automated testing using mocked RSS data
+
+#### Configured RSS Sources
+
+| Source | Feed URL | Purpose |
+|---|---|---|
+| GitHub Blog | https://github.blog/feed/ | Developer and technology announcements |
+| Python Insider | https://blog.python.org/rss.xml | Python ecosystem announcements |
+
+These feeds are general technology announcement sources.
+They are not guaranteed to contain free certification vouchers,
+Philippine events, or hackathon announcements.
+
+#### Running RSS Collection
+
+To execute the configured RSS collectors locally:
+
+```powershell
+python -m src.collectors.source_registry
+```
+
+To run the original single-source RSS collector:
+
+```powershell
+python -m src.collectors.rss_collector
+```
+
+To demonstrate the classifier independently:
+
+```powershell
+python -m src.collectors.opportunity_classifier
+```
+
+No Gmail notification is sent by these commands.
+
+#### Source Configuration
+
+Approved sources are configured in:
+
+`config/sources.yaml`
+
+Each source contains:
+
+- A unique source identifier
+- An official source name
+- An approved RSS URL
+- An enabled or disabled setting
+- A maximum result count
+
+Source IDs and URLs are validated against the allowlist in:
+
+`src/collectors/source_registry.py`
+
+Adding new websites requires reviewing their data access
+permissions and updating the approved source registry.
+
+#### Opportunity Categories
+
+The classifier recognizes:
+
+| Category | Description |
+|---|---|
+| certification_voucher | Possible certification examination promotions |
+| tech_event | Possible technology workshops, webinars, and meetups |
+| hackathon | Possible coding competitions and hackathons |
+| unclassified | Announcements without qualifying keyword matches |
+
+#### Verification Status
+
+Classification does not establish that an opportunity is
+legitimate, free, currently available, or open to Philippine
+participants.
+
+Current records use:
+
+- verification: not_verified
+- free_status: unknown
+- ph_eligibility: unknown
+- deadline_status: unknown
+
+Verification and filtering will be expanded in later phases.
+
+#### GitHub Actions Integration
+
+The workflow runs the RSS classifier during:
+
+- Relevant pushes to the main branch
+- Daily scheduled preview executions
+- Manually triggered preview-only runs
+
+RSS collection executes separately from email delivery.
+
+Temporary feed failures produce workflow warnings without
+automatically failing the existing Python test pipeline.
+
+Scheduled email delivery remains disabled.
+
+#### Automated Testing
+
+The project currently includes 46 automated tests.
+
+Run the complete test suite:
+
+```powershell
+python -m pytest -v
+```
+
+RSS-related tests use mocked network responses and do not
+require actual internet access.
+
+#### Current Limitations
+
+- Only approved RSS feed endpoints are supported.
+- Classification relies on keywords rather than semantic AI.
+- Current classification examines announcement titles.
+- Matches may include false positives or miss relevant items.
+- Free status, deadlines, and PH eligibility are not verified.
+- Opportunity records are not stored persistently.
+- Duplicate tracking is not implemented.
+- RSS collection failures require inspection of workflow logs.
+- Real opportunity notifications are not sent automatically.
+
+Persistent tracking and duplicate prevention are planned
+for Phase 4.
+
+#### Legal and Ethical Collection
+
+The system uses publisher-provided RSS endpoints and avoids
+paid platform APIs.
+
+Additional sources must be reviewed for applicable terms,
+access permissions, usage restrictions, and rate limits.
+
+The system does not attempt to bypass authentication,
+CAPTCHAs, paywalls, or other access controls.
+
 ## Project Structure
 
 ```text
@@ -304,7 +463,7 @@ Tests use mocked SMTP delivery and do not require sending real emails.
 
 - [x] Phase 1 — Basic Email Automation
 - [x] Phase 2 — GitHub Actions Scheduling
-- [ ] Phase 3 — RSS Opportunity Collection
+- [x] Phase 3 — RSS Opportunity Collection
 - [ ] Phase 4 — SQLite and Duplicate Prevention
 - [ ] Phase 5 — Filtering and Validation
 - [ ] Phase 6 — Certification Voucher Monitoring

@@ -19,6 +19,7 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "config/sources.yaml"
       - "requirements.txt"
       - ".github/workflows/automation.yml"
 
@@ -67,6 +68,26 @@ jobs:
         if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
         run: |
           python -m src.main
+
+      - name: Preview classified RSS announcements
+        id: rss_preview
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          python -m src.collectors.source_registry
+
+      - name: Summarize RSS collection status
+        if: ${{ always() && steps.rss_preview.outcome != 'skipped' }}
+        env:
+          RSS_OUTCOME: ${{ steps.rss_preview.outcome }}
+        run: |
+          if [ "$RSS_OUTCOME" = "success" ]; then
+            echo "RSS classification preview succeeded." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "WARNING: RSS classification preview did not complete successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "Review the RSS collection step logs for failed sources." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Validate email configuration
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_email == true }}
