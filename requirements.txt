@@ -1,0 +1,8 @@
+# Environment variable management
+python-dotenv>=1.0,<2.0
+
+# Automated testing
+pytest>=8.0,<10.0
+
+# IANA time zone database for Windows compatibility
+tzdata>=2025.1

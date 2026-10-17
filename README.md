@@ -1,0 +1,258 @@
+# PH Tech Opportunities Automation
+
+A free and open-source Python automation system designed to discover, organize, and deliver email notifications about technology opportunities available to participants in the Philippines.
+
+The project focuses on three opportunity categories:
+
+1. Free professional certification exam vouchers
+2. Technology events, workshops, and developer meetups
+3. Hackathons, coding competitions, and innovation challenges
+
+The system is being developed incrementally using Python, Visual Studio Code, and GitHub.
+
+> **Development status:** Phase 1 — Basic Email Automation.
+>
+> The current version sends sample opportunity notifications through Gmail SMTP. Automated collection of real opportunities has not yet been implemented.
+
+## Project Objectives
+
+The project aims to:
+
+- Provide free email notifications about technology opportunities.
+- Prioritize opportunities available to Philippine participants.
+- Discover certification vouchers, technology events, and hackathons.
+- Avoid paid APIs and premium automation subscriptions.
+- Use authorized public sources and open-source technologies.
+- Prevent duplicate notifications in future development phases.
+- Support automated execution through GitHub Actions.
+
+## Technology Stack
+
+| Technology | Purpose | Status |
+|---|---|---|
+| Python 3 | Main application | Implemented |
+| Gmail SMTP | Email delivery | Implemented |
+| python-dotenv | Environment configuration | Implemented |
+| pytest | Automated unit testing | Implemented |
+| tzdata | Time zone support | Implemented |
+| Git and GitHub | Version control | In progress |
+| GitHub Actions | Scheduled execution | Planned |
+| RSS / Atom | Opportunity collection | Planned |
+| SQLite | Opportunity history | Planned |
+
+## Current Features
+
+### Phase 1 — Basic Email Automation
+
+The application currently supports:
+
+- Gmail SMTP authentication using environment variables
+- TLS-secured SMTP connections
+- HTML and plain-text email content
+- Three sample opportunity categories
+- Philippine date formatting
+- Preview mode without email delivery
+- Explicit email delivery using the `--send` argument
+- Configuration validation
+- SMTP error handling
+- Automated unit testing with mocked email delivery
+
+**Important:** Sample opportunities are fictional and are only used to test notification formatting and delivery.
+
+## Project Structure
+
+```text
+ph-tech-opportunities/
+│
+├── src/
+│   ├── __init__.py
+│   ├── main.py
+│   └── email_sender.py
+│
+├── tests/
+│   ├── test_email_sender.py
+│   └── test_main.py
+│
+├── .env.example
+├── .gitignore
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
+
+The local `.env` and `.venv` files are excluded from version control.
+
+## Installation
+
+### Requirements
+
+- Windows 10 or Windows 11
+- Python 3.11 or newer
+- Visual Studio Code
+- Git
+- A Gmail account supporting the selected SMTP authentication method
+
+### 1. Clone the repository
+
+After the GitHub repository is published:
+
+```powershell
+git clone <YOUR_REPOSITORY_URL>
+cd ph-tech-opportunities
+```
+
+Replace `<YOUR_REPOSITORY_URL>` with the actual GitHub repository URL.
+
+### 2. Create a virtual environment
+
+```powershell
+python -m venv .venv
+```
+
+### 3. Activate the environment
+
+For Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### 4. Install dependencies
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+### 5. Configure environment variables
+
+Copy the provided configuration template:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Open `.env` and provide the required values:
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+
+SENDER_EMAIL=your_email@gmail.com
+SENDER_APP_PASSWORD=your_app_password
+RECIPIENT_EMAIL=recipient@gmail.com
+
+APP_NAME=PH Tech Opportunities Automation
+APP_TIMEZONE=Asia/Manila
+APP_ENV=development
+```
+
+Use a Google App Password if your Gmail account supports this authentication method.
+
+Never commit or publish the actual `.env` file.
+
+## Running the Application
+
+### Preview mode
+
+Run:
+
+```powershell
+python -m src.main
+```
+
+This generates and displays the sample notification without sending an email.
+
+### Email delivery mode
+
+Run:
+
+```powershell
+python -m src.main --send
+```
+
+This connects to Gmail SMTP and submits the notification to the configured recipient.
+
+## Automated Testing
+
+Run all tests:
+
+```powershell
+python -m pytest -v
+```
+
+Phase 1 includes 14 unit tests covering:
+
+- Environment variable validation
+- SMTP port validation
+- Email address validation
+- Placeholder credential detection
+- SMTP message construction
+- Mocked SMTP authentication failures
+- HTML notification generation
+- Opportunity category verification
+- Preview mode safety
+- Email delivery execution
+- Application error handling
+
+All 14 tests passed during local Phase 1 verification.
+
+Tests use mocked SMTP delivery and do not require sending real emails.
+
+## Development Roadmap
+
+- [x] Phase 1 — Basic Email Automation
+- [ ] Phase 2 — GitHub Actions Scheduling
+- [ ] Phase 3 — RSS Opportunity Collection
+- [ ] Phase 4 — SQLite and Duplicate Prevention
+- [ ] Phase 5 — Filtering and Validation
+- [ ] Phase 6 — Certification Voucher Monitoring
+- [ ] Phase 7 — Philippine Technology Event Integrations
+- [ ] Phase 8 — Philippine Hackathon Monitoring
+- [ ] Phase 9 — Advanced Email Notifications
+- [ ] Phase 10 — Testing, Security, and Production Release
+
+Phase 1 implementation and testing are complete. Repository publication is the remaining Phase 1 milestone.
+
+All development phases will extend this same repository.
+
+## Legal and Ethical Data Collection
+
+The project follows these principles:
+
+1. Use authorized public data sources and officially available feeds.
+2. Respect applicable website terms and access restrictions.
+3. Do not bypass authentication, CAPTCHAs, paywalls, or anti-bot systems.
+4. Avoid unauthorized use of subscription-only APIs.
+5. Apply reasonable rate limits to permitted automated requests.
+6. Preserve source attribution for discovered opportunities.
+7. Collect only information necessary for the application.
+8. Protect email credentials and other sensitive information.
+
+Luma and Meetup integrations will use authorized access methods where available. The project does not guarantee full platform coverage.
+
+## Security
+
+- Credentials are loaded from environment variables.
+- Local `.env` files are excluded from Git.
+- Python virtual environments are not committed.
+- SMTP connections use TLS.
+- Automated tests use mock email connections.
+- Secrets must not appear in source code or application logs.
+
+GitHub Actions Secrets will be introduced during Phase 2.
+
+## Open-Source License
+
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for the complete license terms.
+
+## Disclaimer
+
+This project is an independent open-source automation tool.
+
+Certification providers, event organizers, and hackathon platforms are not affiliated with or responsible for this project.
+
+Users must verify registration availability, eligibility, deadlines, and offer conditions through original official sources before participating.
+
+The software is provided without warranty under the terms of the MIT License.
