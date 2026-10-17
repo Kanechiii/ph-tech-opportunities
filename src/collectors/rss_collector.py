@@ -5,6 +5,7 @@ from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from html import unescape
+from src.collectors.source_registry import APPROVED_FEED_URLS
 import re
 
 import feedparser
@@ -21,7 +22,7 @@ MAX_RESULTS = 5
 def fetch_feed(url=SOURCE_URL):
     """Download RSS data from a configured public feed."""
 
-    if url != SOURCE_URL:
+    if url not in APPROVED_FEED_URLS:
         raise ValueError("RSS source is not approved.")
 
     request = Request(

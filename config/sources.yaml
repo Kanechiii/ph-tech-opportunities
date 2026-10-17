@@ -1,0 +1,18 @@
+version: 1
+
+# Authorized, public RSS/Atom feeds.
+# Each source is restricted to an approved endpoint
+# in src/collectors/source_registry.py.
+
+sources:
+  - id: github_blog
+    name: GitHub Blog
+    url: https://github.blog/feed/
+    enabled: true
+    max_results: 5
+
+  - id: python_insider
+    name: Python Insider
+    url: https://blog.python.org/rss.xml
+    enabled: true
+    max_results: 5

@@ -9,3 +9,6 @@ tzdata>=2025.1
 
 # RSS and Atom feed parsing
 feedparser>=6.0.11,<7.0
+
+# Safe YAML source configuration
+PyYAML>=6.0.2,<7.0
