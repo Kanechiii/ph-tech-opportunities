@@ -48,8 +48,7 @@ def get_email_config():
     if (
         config["SENDER_EMAIL"] == "your_email@gmail.com"
         or config["RECIPIENT_EMAIL"] == "your_email@gmail.com"
-        or config["SENDER_APP_PASSWORD"]
-        == "your_16_character_app_password"
+        or config["SENDER_APP_PASSWORD"] == "your_16_character_app_password"
     ):
         raise ValueError(
             "Replace the placeholder values in your .env file."
