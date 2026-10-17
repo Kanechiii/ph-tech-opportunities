@@ -22,6 +22,10 @@ on:
       - "requirements.txt"
       - ".github/workflows/automation.yml"
 
+  schedule:
+    - cron: "15 8 * * *"
+      timezone: "Asia/Manila"
+
 permissions:
   contents: read
 
@@ -60,7 +64,7 @@ jobs:
           python -m pytest -v
 
       - name: Preview automation
-        if: ${{ github.event_name == 'push' || !inputs.send_email }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
         run: |
           python -m src.main
 
