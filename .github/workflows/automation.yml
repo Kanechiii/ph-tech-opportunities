@@ -1,11 +1,17 @@
 name: PH Tech Opportunities Automation
 
-# Phase 2 - Step 1
-# Execute tests manually or when changes are pushed.
-# No email credentials or actual email delivery yet.
+# Phase 2 - Step 3
+# Automated testing with optional manual email delivery.
+# Scheduled execution is not enabled yet.
 
 on:
   workflow_dispatch:
+    inputs:
+      send_email:
+        description: "Send a real test notification email?"
+        required: true
+        type: boolean
+        default: false
 
   push:
     branches:
@@ -18,6 +24,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ph-tech-opportunities-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test-automation:
@@ -50,5 +60,29 @@ jobs:
           python -m pytest -v
 
       - name: Preview automation
+        if: ${{ github.event_name == 'push' || !inputs.send_email }}
         run: |
           python -m src.main
+
+      - name: Validate email configuration
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_email == true }}
+        env:
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_APP_PASSWORD: ${{ secrets.SENDER_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: |
+          python -c "import os, sys; required = ('SENDER_EMAIL', 'SENDER_APP_PASSWORD', 'RECIPIENT_EMAIL'); missing = [key for key in required if not os.environ.get(key, '').strip()]; print('Email configuration: ' + ('missing required secrets' if missing else 'all required secrets present')); sys.exit(1 if missing else 0)"
+
+      - name: Send test notification email
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.send_email == true }}
+        env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: "587"
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_APP_PASSWORD: ${{ secrets.SENDER_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          APP_NAME: PH Tech Opportunities Automation
+          APP_TIMEZONE: Asia/Manila
+          APP_ENV: development
+        run: |
+          python -m src.main --send
