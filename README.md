@@ -59,6 +59,108 @@ The application currently supports:
 
 **Important:** Sample opportunities are fictional and are only used to test notification formatting and delivery.
 
+### Phase 2 — GitHub Actions Automation
+
+The project now supports GitHub-hosted workflow execution.
+
+Implemented features:
+
+- Python 3.14 execution on GitHub-hosted Ubuntu runners
+- Automated dependency installation
+- Execution of all 14 pytest unit tests
+- Manual workflow execution using `workflow_dispatch`
+- Safe preview execution after relevant Git pushes
+- Secure Gmail credentials using GitHub Actions Secrets
+- Manually authorized Gmail SMTP delivery
+- Daily workflow scheduling at 8:15 AM Philippine Time
+- Conditional execution of email-related workflow steps
+- SMTP configuration diagnostics
+- Read-only GitHub token permissions
+- Workflow concurrency configuration
+
+#### Workflow Execution Modes
+
+| Trigger | Behavior | Email Delivery |
+|---|---|---|
+| Push to main | Run tests and preview | Disabled |
+| Manual, send_email=false | Run tests and preview | Disabled |
+| Manual, send_email=true | Run tests and send sample email | Enabled |
+| Daily schedule | Run tests and preview | Disabled |
+
+#### Daily Schedule
+
+The workflow uses:
+
+```yaml
+schedule:
+  - cron: "15 8 * * *"
+    timezone: "Asia/Manila"
+```
+
+The scheduled workflow executes at approximately 8:15 AM
+Philippine Time. GitHub Actions scheduling is not guaranteed
+to execute at the exact minute.
+
+Scheduled notifications remain disabled because the application
+currently generates fictional sample opportunities.
+
+#### Manual Email Testing
+
+1. Open the repository on GitHub.
+2. Select the Actions tab.
+3. Open PH Tech Opportunities Automation.
+4. Select Run workflow.
+5. Choose the main branch.
+6. Enable the send_email input.
+7. Execute the workflow.
+8. Verify the email in the configured Gmail inbox.
+
+Manual email delivery uses GitHub Actions Secrets:
+
+- SENDER_EMAIL
+- SENDER_APP_PASSWORD
+- RECIPIENT_EMAIL
+
+Never expose the secret values in logs or source files.
+
+#### Reliability and Security
+
+The workflow uses:
+
+- `permissions: contents: read`
+- A concurrency group to limit overlapping runs
+- A 10-minute job timeout
+- Automated pytest checks before email execution
+- Secret validation before SMTP authentication
+
+GitHub-hosted runners are temporary. Files created during a run
+must not be treated as permanent storage.
+
+Scheduled workflows in inactive public repositories may be
+automatically disabled by GitHub after 60 days of inactivity.
+
+#### Current Limitations
+
+- Real opportunity collection is not implemented.
+- Scheduled runs do not send email.
+- Repeated manual runs can send identical test notifications.
+- Persistent opportunity tracking is not implemented.
+- Opportunity-level duplicate detection is not implemented.
+- Source failure monitoring is not yet implemented.
+
+These limitations will be addressed during subsequent phases.
+
+#### Phase 2 Acceptance Criteria
+
+- GitHub Actions workflow executes successfully.
+- All 14 pytest tests pass.
+- Preview mode executes without sending email.
+- Manual email delivery works using GitHub Secrets.
+- Push-triggered executions skip email delivery.
+- A daily Philippine Time schedule is configured.
+- Credentials are excluded from the repository.
+- Existing application files remain functional.
+
 ## Project Structure
 
 ```text
@@ -201,7 +303,7 @@ Tests use mocked SMTP delivery and do not require sending real emails.
 ## Development Roadmap
 
 - [x] Phase 1 — Basic Email Automation
-- [ ] Phase 2 — GitHub Actions Scheduling
+- [x] Phase 2 — GitHub Actions Scheduling
 - [ ] Phase 3 — RSS Opportunity Collection
 - [ ] Phase 4 — SQLite and Duplicate Prevention
 - [ ] Phase 5 — Filtering and Validation
