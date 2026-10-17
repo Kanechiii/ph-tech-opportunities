@@ -4,6 +4,9 @@ from pathlib import Path
 
 import yaml
 
+from src.collectors.opportunity_classifier import (
+    classify_announcement,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "sources.yaml"
@@ -132,10 +135,18 @@ def collect_all_sources(config_path=DEFAULT_CONFIG):
             )
 
             for item in items:
-                # The individual feed parser has a default
-                # source label; replace it with the registry label.
+                # Preserve the original source information.
                 item["source"] = source["name"]
                 item["source_id"] = source["id"]
+
+                # Classify the normalized RSS announcement.
+                # Only the title is available at this phase.
+                result = classify_announcement(
+                    title=item["title"]
+                )
+
+                # Add classification and verification metadata.
+                item.update(result)
 
             announcements.extend(items)
 
@@ -173,12 +184,47 @@ def main():
     print(f"Failed sources: {len(errors)}")
     print()
 
+    candidate_count = sum(
+        item["is_candidate"]
+        for item in announcements
+    )
+
+    unclassified_count = (
+        len(announcements) - candidate_count
+    )
+
+    print(f"Potential matches: {candidate_count}")
+    print(f"Unclassified: {unclassified_count}")
+    print()
+
     for index, item in enumerate(announcements, start=1):
         print(f"[{index}] {item['title']}")
         print(f"Source: {item['source']}")
         print(f"URL: {item['url']}")
-        print(f"Published: {item['published_at'] or 'Unknown'}")
+        print(
+            f"Published: "
+            f"{item['published_at'] or 'Unknown'}"
+        )
+
+        print(f"Category: {item['category']}")
+        print(
+            f"Classification: "
+            f"{item['classification_status']}"
+        )
+        print(
+            f"Matched keywords: "
+            f"{', '.join(item['matched_terms']) or 'None'}"
+        )
+
         print(f"Verification: {item['verification']}")
+        print(f"Free status: {item['free_status']}")
+        print(
+            f"PH eligibility: {item['ph_eligibility']}"
+        )
+        print(
+            f"Deadline status: {item['deadline_status']}"
+        )
+
         print("-" * 55)
 
     print("Preview completed. No email was sent.")

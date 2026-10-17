@@ -180,3 +180,107 @@ def test_one_source_failure_does_not_stop_others():
     assert items[0]["source_id"] == "python_insider"
     assert len(errors) == 1
     assert errors[0]["source_id"] == "github_blog"
+
+def test_classifies_certification_voucher():
+    """Collected voucher announcements are potential matches."""
+
+    sample = {
+        "title": "AWS Certification Exam Voucher Available",
+        "url": "https://example.com/voucher",
+        "published_at": None,
+        "category": "unclassified",
+        "verification": "not_verified",
+    }
+
+    with patch(
+        "src.collectors.rss_collector.collect_rss",
+        return_value=[sample.copy()],
+    ):
+        items, errors = collect_all_sources()
+
+    assert errors == []
+    assert len(items) == 2
+
+    for item in items:
+        assert item["category"] == "certification_voucher"
+        assert item["is_candidate"] is True
+        assert item["classification_status"] == "potential_match"
+        assert item["verification"] == "not_verified"
+
+
+def test_classifies_technology_event():
+    """Collected technology events receive a potential-match label."""
+
+    sample = {
+        "title": "Free Python Developer Workshop",
+        "url": "https://example.com/workshop",
+        "published_at": None,
+        "category": "unclassified",
+        "verification": "not_verified",
+    }
+
+    with patch(
+        "src.collectors.rss_collector.collect_rss",
+        return_value=[sample.copy()],
+    ):
+        items, errors = collect_all_sources()
+
+    assert errors == []
+
+    for item in items:
+        assert item["category"] == "tech_event"
+        assert item["is_candidate"] is True
+        assert item["free_status"] == "unknown"
+        assert item["ph_eligibility"] == "unknown"
+
+
+def test_classifies_hackathon():
+    """Hackathon announcements remain unverified."""
+
+    sample = {
+        "title": "Philippines Student AI Hackathon",
+        "url": "https://example.com/hackathon",
+        "published_at": None,
+        "category": "unclassified",
+        "verification": "not_verified",
+    }
+
+    with patch(
+        "src.collectors.rss_collector.collect_rss",
+        return_value=[sample.copy()],
+    ):
+        items, errors = collect_all_sources()
+
+    assert errors == []
+
+    for item in items:
+        assert item["category"] == "hackathon"
+        assert item["classification_status"] == "potential_match"
+        assert item["verification"] == "not_verified"
+        assert item["deadline_status"] == "unknown"
+
+
+def test_unrelated_announcement_remains_unclassified():
+    """Unrelated articles do not become opportunities."""
+
+    sample = {
+        "title": "New Python Release Announced",
+        "url": "https://example.com/release",
+        "published_at": None,
+        "category": "unclassified",
+        "verification": "not_verified",
+    }
+
+    with patch(
+        "src.collectors.rss_collector.collect_rss",
+        return_value=[sample.copy()],
+    ):
+        items, errors = collect_all_sources()
+
+    assert errors == []
+
+    for item in items:
+        assert item["category"] == "unclassified"
+        assert item["is_candidate"] is False
+        assert item["classification_status"] == "unclassified"
+        assert item["matched_terms"] == []
