@@ -79,6 +79,27 @@ Artifacts are **not permanent private database hosting**. Before any restore or 
 - Gmail submission success does not guarantee inbox receipt, and an ambiguous SMTP outcome must not be retried automatically.
 - Official listing legitimacy, fees, eligibility, and deadlines still require manual verification.
 
+## Local Reviewer Accounts
+
+Reviewer account storage is available in
+`data/reviewer_accounts.sqlite3`, separate from opportunity history.
+
+Create the initial administrator:
+
+```powershell
+python -m src.reviewer_accounts bootstrap local_admin
+```
+
+Check permissions:
+
+```powershell
+python -m src.reviewer_accounts check local_admin approve_opportunity
+```
+
+This is a local authentication foundation. Enforcement in
+`record_review()` is planned but not yet implemented. Password
+verifiers must remain outside GitHub and public workflow artifacts.
+
 ## Development milestones
 
 | Phase | Completed scope |
