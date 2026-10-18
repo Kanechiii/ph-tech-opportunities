@@ -1,10 +1,12 @@
 """Offline tests for persistent SQLite snapshots."""
 
+from pathlib import Path
 import sqlite3
 import zipfile
 
 import pytest
 
+from unittest.mock import patch
 from src.database.schema import SCHEMA_SQL, connect_database
 from src.database.schema import initialize_database
 from src.database.snapshot import (
@@ -204,3 +206,86 @@ def test_version_two_snapshot_migrates_to_three(tmp_path):
 
     finally:
         connection.close()
+
+
+def test_atomic_snapshot_replaces_existing_backup(
+    database_path, tmp_path
+):
+    """A valid replacement preserves the database contents."""
+
+    snapshot = tmp_path / "snapshots" / "opportunities.sqlite3"
+
+    # Create an initial valid snapshot.
+    create_snapshot(database_path, snapshot)
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO opportunities (source_id, url, title)
+            VALUES (?, ?, ?)
+            """,
+            (
+                "github_blog",
+                "https://github.blog/atomic-test",
+                "Atomic backup test",
+            ),
+        )
+
+    # Publish a replacement with the new record.
+    create_snapshot(database_path, snapshot)
+
+    assert validate_database(snapshot) is True
+
+    with sqlite3.connect(snapshot) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM opportunities"
+        ).fetchone()[0]
+
+    assert count == 1
+
+    assert list(
+        snapshot.parent.glob(".snapshot-pending-*")
+    ) == []
+
+
+def test_failed_snapshot_preserves_previous_backup(
+    database_path, tmp_path
+):
+    """A validation failure must not destroy the old snapshot."""
+
+    snapshot = tmp_path / "snapshots" / "opportunities.sqlite3"
+
+    create_snapshot(database_path, snapshot)
+
+    previous_bytes = snapshot.read_bytes()
+
+    original_validate = validate_database
+
+    def simulated_validation(path, *args, **kwargs):
+        # Source validation succeeds; temporary validation fails.
+        if Path(path).name.startswith(".snapshot-pending-"):
+            raise ValueError("Simulated snapshot validation failure")
+
+        return original_validate(path, *args, **kwargs)
+
+    from src.database import snapshot as snapshot_module
+
+    with patch.object(
+        snapshot_module,
+        "validate_database",
+        side_effect=simulated_validation,
+    ):
+        with pytest.raises(
+            ValueError,
+            match="Simulated snapshot validation failure",
+        ):
+            create_snapshot(database_path, snapshot)
+
+    # The previously published backup is unchanged.
+    assert snapshot.read_bytes() == previous_bytes
+    assert validate_database(snapshot) is True
+
+    # No incomplete temporary snapshot is left behind.
+    assert list(
+        snapshot.parent.glob(".snapshot-pending-*")
+    ) == []

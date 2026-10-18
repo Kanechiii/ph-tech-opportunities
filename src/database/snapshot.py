@@ -98,37 +98,75 @@ def create_snapshot(
     database_path=DATABASE_PATH,
     snapshot_path=SNAPSHOT_PATH,
 ):
-    """Create a consistent SQLite backup for artifact upload."""
+    """Atomically publish a validated SQLite snapshot.
+
+    Preserve the existing snapshot if backup or validation fails.
+    """
 
     database_path = Path(database_path)
     snapshot_path = Path(snapshot_path)
 
+    # Fail before creating a temporary file if the source is bad.
     validate_database(database_path)
-
-    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
 
     if database_path.resolve() == snapshot_path.resolve():
         raise ValueError("Snapshot must use a different path.")
 
-    if snapshot_path.exists():
-        snapshot_path.unlink()
-
-    source = sqlite3.connect(
-        database_path.resolve().as_uri() + "?mode=ro",
-        uri=True,
+    snapshot_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    destination = sqlite3.connect(snapshot_path)
+    # Create the temporary file in the destination directory.
+    # os.replace() is atomic when the filesystem supports it.
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".snapshot-pending-",
+        suffix=".sqlite3",
+        dir=snapshot_path.parent,
+    )
+
+    temporary_path = Path(temporary_name)
+    os.close(descriptor)
+
+    source = None
+    destination = None
 
     try:
+        source = sqlite3.connect(
+            database_path.resolve().as_uri() + "?mode=ro",
+            uri=True,
+        )
+
+        destination = sqlite3.connect(temporary_path)
+
+        # SQLite creates a transactionally consistent copy.
         source.backup(destination)
-    finally:
+
         destination.close()
+        destination = None
+
         source.close()
+        source = None
 
-    validate_database(snapshot_path)
+        # Verify the temporary backup before publishing it.
+        validate_database(temporary_path)
 
-    return snapshot_path
+        # Publish a fully validated file.
+        # The old snapshot is replaced only at this point.
+        os.replace(temporary_path, snapshot_path)
+
+        return snapshot_path
+
+    finally:
+        if destination is not None:
+            destination.close()
+
+        if source is not None:
+            source.close()
+
+        # On failure, delete only the temporary file.
+        # Never delete the existing published snapshot.
+        temporary_path.unlink(missing_ok=True)
 
 
 def restore_snapshot(

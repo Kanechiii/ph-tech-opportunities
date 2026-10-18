@@ -549,6 +549,50 @@ The GitHub Actions workflow should continue running tests,
 RSS previews, and database persistence without sending reviewed-
 opportunity emails on a schedule.
 
+## Phase 6 — Production Reliability and Opportunity Quality
+
+### Step 1 — Atomic SQLite Snapshot Publishing
+
+SQLite backups are now created in a temporary file and validated
+before replacing the previously published snapshot.
+
+The process uses:
+
+1. Existing database integrity validation.
+2. SQLite's consistent backup API.
+3. Temporary storage in the snapshot destination directory.
+4. Validation of the new snapshot.
+5. Atomic replacement using `os.replace()`.
+6. Temporary file cleanup on failure.
+
+If backup creation or validation fails before replacement, the
+previous snapshot is preserved.
+
+This does not eliminate risks from disk failure, storage corruption,
+artifact expiration, or unsynchronized database copies.
+
+### Verification
+
+Run:
+
+```powershell
+python -m pytest -v
+python -m src.database.snapshot validate
+python -m src.database.snapshot backup
+```
+
+Expected automated test total after Step 1: 129.
+
+Automatic delivery of reviewed opportunities remains disabled.
+
+### Remaining Priorities
+
+- Private, durable authoritative storage
+- Authentication and authorization of reviewers
+- Opportunity verification and quality improvements
+- Delivery-state reconciliation
+- Production security and recovery testing
+
 #### Source Configuration
 
 Approved sources are configured in:
@@ -795,7 +839,7 @@ Tests use mocked SMTP delivery and do not require sending real emails.
 - [x] Phase 2 — GitHub Actions Scheduling
 - [x] Phase 3 — RSS Opportunity Collection
 - [x] Phase 4 — SQLite and Duplicate Prevention
-- [ ] Phase 5 — Filtering and Validation
+- [x] Phase 5 — Filtering and Validation
 - [ ] Phase 6 — Certification Voucher Monitoring
 - [ ] Phase 7 — Philippine Technology Event Integrations
 - [ ] Phase 8 — Philippine Hackathon Monitoring
