@@ -140,7 +140,6 @@ jobs:
       - name: Collect and persist RSS announcements
         id: persistent_collection
         if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
-        continue-on-error: true
         timeout-minutes: 3
         run: |
           python -m src.database.collection_service
@@ -167,11 +166,14 @@ jobs:
         shell: bash
         run: |
           if [ "$COLLECTION_OUTCOME" = "success" ]; then
-            echo "SQLite collection completed successfully." >> "$GITHUB_STEP_SUMMARY"
-            echo "Review the snapshot upload step for persistence status." >> "$GITHUB_STEP_SUMMARY"
+            echo "### SQLite collection" >> "$GITHUB_STEP_SUMMARY"
+            echo "Collection completed successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the snapshot upload step to confirm persistence." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "WARNING: SQLite collection did not complete." >> "$GITHUB_STEP_SUMMARY"
-            echo "The previous valid snapshot was not intentionally replaced." >> "$GITHUB_STEP_SUMMARY"
+            echo "### SQLite collection failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The database collection did not complete successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "A replacement snapshot must not be uploaded." >> "$GITHUB_STEP_SUMMARY"
+            echo "Review the collection and restore logs before rerunning." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Validate email configuration

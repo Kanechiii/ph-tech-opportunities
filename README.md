@@ -219,6 +219,165 @@ python -m src.collectors.opportunity_classifier
 
 No Gmail notification is sent by these commands.
 
+### Phase 4 — Persistence Reliability and Recovery
+
+#### SQLite Persistence
+
+The application stores normalized RSS announcements in SQLite.
+
+The local database is located at:
+
+`data/opportunities.sqlite3`
+
+The database contains:
+
+- `opportunities` — Discovered announcements and classification records
+- `collection_runs` — Collection history and failure status
+- `notification_history` — Reserved for future notification deduplication
+
+The database is ignored by Git and is not committed to the repository.
+
+#### GitHub Actions Persistence
+
+GitHub-hosted runners are temporary.
+
+The scheduled workflow preserves SQLite data through
+validated GitHub Actions artifacts named:
+
+`ph-tech-sqlite`
+
+A successful hosted collection:
+
+1. Finds the latest available SQLite snapshot.
+2. Restores and validates the database.
+3. Collects and stores classified RSS announcements.
+4. Creates a validated SQLite backup.
+5. Uploads a new workflow artifact.
+
+The first hosted database must be initialized manually using
+the `bootstrap_database` workflow input.
+
+Automatic email notifications remain disabled.
+
+#### Failed Collection Handling
+
+If RSS collection fails:
+
+- The persistent collection step fails.
+- No new database snapshot should be uploaded.
+- The workflow reports the failure.
+- Previous successfully uploaded artifacts remain available
+  until expiration or deletion.
+
+A failing source must not be mistaken for zero new opportunities.
+
+If snapshot restoration fails, persistent collection does not
+continue and a new snapshot is not created automatically.
+
+#### SQLite Integrity Validation
+
+Validate the existing local database:
+
+```powershell
+python -m src.database.snapshot validate
+```
+
+Create a validated local backup:
+
+```powershell
+python -m src.database.snapshot backup
+```
+
+Validate the backup:
+
+```powershell
+python -c "from src.database.snapshot import validate_database; validate_database('data/snapshot_upload/opportunities.sqlite3'); print('Snapshot OK')"
+```
+
+#### Recovering From a Missing or Damaged Artifact
+
+1. Open GitHub Actions and locate the latest successful
+   workflow run that contains the `ph-tech-sqlite` artifact.
+2. Download the artifact to a secure local folder.
+3. Validate its SQLite contents before restoring.
+4. Preserve any existing local database before replacing it.
+5. Do not bootstrap a new hosted database while a recoverable
+   historical snapshot may still exist.
+
+If all hosted artifacts have expired or been deleted, the
+workflow cannot automatically reconstruct the previous history.
+
+A new bootstrap creates a new database history, not a recovery
+of the original database.
+
+#### Artifact Retention
+
+GitHub Actions artifacts have limited retention.
+
+The configured retention is 90 days, subject to repository
+and organization policies.
+
+Artifacts are not permanent backups.
+
+If the project is inactive for an extended period, or if
+artifact storage becomes unavailable, historical records may
+be lost unless they were backed up elsewhere.
+
+GitHub Actions artifact storage quotas and billing limits
+also apply.
+
+#### Data Privacy
+
+Workflow artifacts may be downloaded by users with repository
+read access.
+
+For a public repository, treat artifact snapshots as
+potentially publicly accessible.
+
+Only public, non-sensitive RSS-derived information should be
+stored in the current hosted database.
+
+Do not store passwords, personal contact details, access tokens,
+or private verification notes in uploaded snapshots.
+
+#### Duplicate Detection Limitations
+
+The current database identifies duplicate announcements using:
+
+`source_id + exact URL`
+
+The same opportunity published using different URLs, tracking
+parameters, or different sources may still produce multiple rows.
+
+The system does not yet use persistent notification history to
+prevent repeated real email delivery.
+
+#### Operational Checklist
+
+After scheduled runs, review:
+
+- Python test results
+- RSS collection warnings
+- SQLite collection status
+- Successful snapshot backup creation
+- Successful artifact upload
+- Missing or expired snapshot warnings
+- Unexpected database growth
+
+A green workflow does not independently prove that every
+source returned new, valid opportunities.
+
+#### Phase 4 Limitations
+
+- Hosted persistence depends on expiring workflow artifacts.
+- GitHub Actions artifacts are not a transactional database service.
+- Cross-source opportunity deduplication is not implemented.
+- Automatic opportunity emails remain disabled.
+- Source eligibility, cost, and deadlines are not verified.
+- A permanent off-platform backup strategy is not implemented.
+- Historical collection runs have limited timing precision.
+- The database is intended for public RSS-derived data only.
+
 #### Source Configuration
 
 Approved sources are configured in:
