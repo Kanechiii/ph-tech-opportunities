@@ -13,6 +13,12 @@ on:
         type: boolean
         default: false
 
+      bootstrap_database:
+        description: "Initialize hosted SQLite storage only if no snapshot exists?"
+        required: true
+        type: boolean
+        default: false
+
   push:
     branches:
       - main
@@ -29,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ph-tech-opportunities-${{ github.ref }}
@@ -87,6 +94,84 @@ jobs:
           else
             echo "WARNING: RSS classification preview did not complete successfully." >> "$GITHUB_STEP_SUMMARY"
             echo "Review the RSS collection step logs for failed sources." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Restore hosted SQLite snapshot
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOOTSTRAP_DATABASE: ${{ inputs.bootstrap_database || false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Searching for the latest SQLite snapshot..."
+
+          artifact_id="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=ph-tech-sqlite&per_page=100" \
+              --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | last | .id // empty'
+          )"
+
+          if [ -n "$artifact_id" ]; then
+            echo "Restoring an existing hosted snapshot."
+
+            curl --fail --location --silent --show-error \
+              --retry 3 \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" \
+              --output "$RUNNER_TEMP/sqlite-snapshot.zip"
+
+            python -m src.database.snapshot restore \
+              "$RUNNER_TEMP/sqlite-snapshot.zip"
+
+          elif [ "$BOOTSTRAP_DATABASE" = "true" ] && [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Explicitly initializing the first hosted database."
+            python -m src.database.schema
+            python -m src.database.snapshot validate
+
+          else
+            echo "::error::No usable SQLite snapshot was found."
+            echo "::error::For first-time setup, run manually with bootstrap_database enabled."
+            exit 1
+          fi
+
+      - name: Collect and persist RSS announcements
+        id: persistent_collection
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email == false) }}
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python -m src.database.collection_service
+
+      - name: Create validated SQLite snapshot
+        if: ${{ steps.persistent_collection.outcome == 'success' }}
+        run: |
+          python -m src.database.snapshot backup
+
+      - name: Upload hosted SQLite snapshot
+        if: ${{ steps.persistent_collection.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph-tech-sqlite
+          path: data/snapshot_upload/opportunities.sqlite3
+          retention-days: 90
+          if-no-files-found: error
+          compression-level: 6
+
+      - name: Summarize persistent collection
+        if: ${{ always() && steps.persistent_collection.outcome != 'skipped' }}
+        env:
+          COLLECTION_OUTCOME: ${{ steps.persistent_collection.outcome }}
+        shell: bash
+        run: |
+          if [ "$COLLECTION_OUTCOME" = "success" ]; then
+            echo "SQLite collection completed successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "Review the snapshot upload step for persistence status." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "WARNING: SQLite collection did not complete." >> "$GITHUB_STEP_SUMMARY"
+            echo "The previous valid snapshot was not intentionally replaced." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Validate email configuration
