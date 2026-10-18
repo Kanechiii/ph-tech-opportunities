@@ -43,6 +43,7 @@ Edit your local `.env` only if you intend to run a manual Gmail test. Never comm
 | Preview one pending, reviewed job | `python -m src.notification_delivery preview 1` |
 | Assess candidate quality (read only) | `python -m src.collectors.opportunity_quality` |
 | Check storage migration readiness (read only) | `python -m src.database.storage_readiness` |
+| Check both databases before future migration | `python -m src.database.migration_preflight` |
 | Audit database health (read only) | `python -m src.database.health_audit` |
 | Validate local SQLite | `python -m src.database.snapshot validate` |
 | Create validated SQLite backup | `python -m src.database.snapshot backup` |
