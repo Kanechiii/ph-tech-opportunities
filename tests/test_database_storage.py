@@ -261,3 +261,72 @@ def test_invalid_opportunity_rejected(database_path):
             },
             database_path,
         )
+
+def test_rss_refresh_preserves_verified_fields(
+    database_path, sample_opportunity
+):
+    """Unknown RSS values must not erase verified information."""
+
+    first = save_opportunity(
+        sample_opportunity,
+        database_path,
+    )
+
+    update_opportunity(
+        first["id"],
+        {
+            "verification": "verified",
+            "free_status": "confirmed_free",
+            "ph_eligibility": "confirmed",
+            "deadline_status": "open",
+        },
+        database_path,
+    )
+
+    refreshed = sample_opportunity.copy()
+    refreshed["title"] = "Updated Workshop Title"
+
+    second = save_opportunity(
+        refreshed,
+        database_path,
+    )
+
+    record = get_opportunity(
+        second["id"],
+        database_path,
+    )
+
+    assert second["created"] is False
+    assert record["title"] == "Updated Workshop Title"
+    assert record["verification"] == "verified"
+    assert record["free_status"] == "confirmed_free"
+    assert record["ph_eligibility"] == "confirmed"
+    assert record["deadline_status"] == "open"
+
+
+def test_rss_refresh_preserves_existing_publication_date(
+    database_path, sample_opportunity
+):
+    """A missing RSS date must not erase a known date."""
+
+    first = save_opportunity(
+        sample_opportunity,
+        database_path,
+    )
+
+    refreshed = sample_opportunity.copy()
+    refreshed["published_at"] = None
+
+    save_opportunity(
+        refreshed,
+        database_path,
+    )
+
+    record = get_opportunity(
+        first["id"],
+        database_path,
+    )
+
+    assert record["published_at"] == (
+        "2026-10-18T08:00:00+00:00"
+    )

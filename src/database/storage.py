@@ -104,7 +104,7 @@ def save_opportunity(
 
         existing = connection.execute(
             """
-            SELECT id
+            SELECT *
             FROM opportunities
             WHERE source_id = ? AND url = ?
             """,
@@ -136,6 +136,27 @@ def save_opportunity(
             opportunity_id = existing["id"]
             created = False
 
+            # An RSS refresh is not a verification action.
+            # Unknown values must not erase existing decisions.
+            protected_defaults = {
+                "verification": "not_verified",
+                "free_status": "unknown",
+                "ph_eligibility": "unknown",
+                "deadline_status": "unknown",
+            }
+
+            for field, default in protected_defaults.items():
+                if (
+                    record[field] == default
+                    and existing[field] != default
+                ):
+                    record[field] = existing[field]
+
+            # Preserve an existing publication date when
+            # the refreshed feed entry has no date.
+            if record["published_at"] is None:
+                record["published_at"] = existing["published_at"]
+                
             connection.execute(
                 """
                 UPDATE opportunities
