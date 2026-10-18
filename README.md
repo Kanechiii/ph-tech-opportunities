@@ -618,6 +618,33 @@ requirements.
 
 Automatic reviewed-opportunity email delivery remains disabled.
 
+### Step 3 — Reviewer Authentication Design
+
+Introduced a standalone reviewer authentication and role-based
+authorization foundation.
+
+Implemented:
+
+- Password hashing with Python's hashlib.scrypt
+- Unique password salts
+- Password verification using hmac.compare_digest
+- Administrator, reviewer, and viewer permission definitions
+- Suspended-account denial
+- Offline authentication and authorization tests
+- Separation of review permissions from email-delivery controls
+
+The authorization module is NOT integrated into the current
+review-writing service. Legacy review commands remain unauthenticated.
+
+No production reviewer credentials or accounts have been created.
+
+See [REVIEWER_AUTH_DESIGN.md](REVIEWER_AUTH_DESIGN.md) for the
+required trusted identity store, review-service enforcement,
+security safeguards, and PostgreSQL integration plan.
+
+The SQLite database remains at schema version 3.
+Automatic reviewed-opportunity email delivery remains disabled.
+
 #### Source Configuration
 
 Approved sources are configured in:
