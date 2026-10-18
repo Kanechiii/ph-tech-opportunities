@@ -4,6 +4,7 @@ Preview is read-only. Real sending is local and manually authorized.
 No scheduled or unattended delivery is supported by this module.
 """
 
+import re
 import argparse
 import os
 import sys
@@ -28,6 +29,30 @@ CATEGORY_LABELS = {
     "tech_event": "Technology Event",
     "hackathon": "Hackathon",
 }
+
+
+def safe_email_subject(title):
+    """Normalize untrusted announcement titles for email headers."""
+
+    if not isinstance(title, str):
+        raise TypeError("Opportunity title must be a string.")
+
+    # Collapse line breaks, tabs, and repeated whitespace.
+    clean_title = re.sub(r"\s+", " ", title).strip()
+
+    # Reject invisible control characters.
+    clean_title = "".join(
+        char for char in clean_title
+        if char.isprintable()
+    )
+
+    if not clean_title:
+        raise ValueError("Opportunity title is empty.")
+
+    # Keep subject lines reasonably short.
+    clean_title = clean_title[:160].rstrip()
+
+    return f"PH Tech Opportunity: {clean_title}"
 
 
 def prepare_notification(job_id, database_path=DATABASE_PATH):
@@ -71,7 +96,7 @@ def prepare_notification(job_id, database_path=DATABASE_PATH):
     url = opportunity["url"]
     evidence = review["evidence_url"]
 
-    subject = f"PH Tech Opportunity: {title}"
+    subject = safe_email_subject(title)
 
     text_body = "\n".join([
         "PH TECH OPPORTUNITIES",

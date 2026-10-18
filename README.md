@@ -10,9 +10,18 @@ The project focuses on three opportunity categories:
 
 The system is being developed incrementally using Python, Visual Studio Code, and GitHub.
 
-> **Development status:** Phase 1 — Basic Email Automation.
+> **Development status:** Phase 5 — Controlled Notification Delivery.
 >
-> The current version sends sample opportunity notifications through Gmail SMTP. Automated collection of real opportunities has not yet been implemented.
+> Implemented: Gmail SMTP, GitHub Actions scheduling, approved RSS
+> collection, keyword classification, SQLite storage, snapshot
+> persistence, manual reviews, notification deduplication, and
+> manually authorized email delivery.
+>
+> Real opportunity notifications remain manual-only. The scheduled
+> workflow collects and stores announcements but does not send emails.
+>
+> The system is still a development project, not a fully verified
+> or production-ready opportunity notification service.
 
 ## Project Objectives
 
@@ -377,6 +386,168 @@ source returned new, valid opportunities.
 - A permanent off-platform backup strategy is not implemented.
 - Historical collection runs have limited timing precision.
 - The database is intended for public RSS-derived data only.
+
+## Phase 5 — Notification Verification and Reliability
+
+### Implemented Components
+
+- Fail-closed notification eligibility assessment
+- Local manual reviews with public evidence URLs
+- Append-only SQLite review history
+- Database schema version 3
+- Transactional notification queue
+- Duplicate notification job prevention
+- Pending, sending, sent, failed, and uncertain states
+- Atomic job claims and claim-token validation
+- Review checks before claiming a notification
+- Read-only reviewed-opportunity email previews
+- Explicitly authorized local Gmail delivery
+- Conservative handling of ambiguous SMTP outcomes
+- Offline reliability tests with mocked SMTP calls
+
+### Notification Queue States
+
+| State | Meaning | Automatic Retry |
+|---|---|---|
+| pending | No delivery attempt started | No automatic send configured |
+| sending | A worker has claimed the job | No |
+| sent | SMTP submission was reported successful | No |
+| failed | Delivery definitively failed before submission | Explicit retry only |
+| uncertain | Submission may have occurred | No |
+
+SMTP submission success does not guarantee final inbox delivery.
+
+### Inspecting Local Notification Jobs
+
+```powershell
+python -m src.database.notification_queue
+```
+
+### Previewing a Reviewed Opportunity
+
+```powershell
+python -m src.notification_delivery preview JOB_ID
+```
+
+Replace JOB_ID with an actual pending notification job ID.
+
+Preview mode does not contact SMTP or change queue state.
+
+### Explicit Local Email Delivery
+
+Reviewed-opportunity delivery is disabled by default.
+
+A local interactive operator may temporarily opt in:
+
+```powershell
+$env:ENABLE_REVIEWED_EMAIL_DELIVERY = "YES"
+python -m src.notification_delivery send JOB_ID
+```
+
+The command displays the notification and requires an additional
+interactive confirmation before contacting Gmail.
+
+Clear the opt-in variable afterward:
+
+```powershell
+Remove-Item Env:\ENABLE_REVIEWED_EMAIL_DELIVERY
+```
+
+Do not run this command for fictional, expired, or unverified
+opportunities.
+
+The command is not an authenticated multi-user authorization system.
+
+### Handling Failed or Uncertain Deliveries
+
+If a job is marked sent:
+
+- Do not enqueue or send it again.
+- Remember that SMTP submission is not proof of inbox receipt.
+
+If a job is marked failed:
+
+- Determine whether failure definitely occurred before submission.
+- Retry only through an explicitly authorized operation.
+
+If a job is marked uncertain:
+
+- Do not retry automatically.
+- Inspect the local queue and Gmail Sent folder.
+- Preserve the database and logs for investigation.
+- Do not assume that the message was never submitted.
+
+If a worker crashes while a job is sending, the existing
+stale-claim quarantine can mark it uncertain. That does not
+establish whether a message was delivered.
+
+### SQLite Backup and Recovery
+
+Validate the local database:
+
+```powershell
+python -m src.database.snapshot validate
+```
+
+Create a consistent local backup:
+
+```powershell
+python -m src.database.snapshot backup
+```
+
+Local and hosted SQLite databases are not automatically synchronized.
+
+Do not deliver the same opportunity independently from different
+database copies. Restoring an older database can lose notification
+state that was recorded after the snapshot was created.
+
+Before restoring any database, preserve the latest local copy,
+validate the backup, and check for pending or ambiguous deliveries.
+
+### Privacy and Security
+
+GitHub Actions artifacts are not private storage when the repository
+is publicly accessible.
+
+Do not store passwords, recipient email addresses, private notes,
+personal identifiers, or other sensitive review information in
+hosted SQLite snapshots.
+
+Manual reviewer labels are operator attestations, not authenticated
+user identities.
+
+Official evidence URLs and verified conditions must be independently
+reviewed. Keyword classification alone does not establish eligibility.
+
+The existing Phase 1 test email path is separate from reviewed-
+opportunity delivery and can still send fictional sample messages
+when manually enabled.
+
+### Known Production Limitations
+
+- No authenticated reviewer accounts or approval roles
+- No guaranteed exactly-once SMTP delivery
+- No automatic reconciliation of uncertain deliveries
+- No authoritative synchronization between local and hosted SQLite
+- No cross-source or canonical-URL opportunity deduplication
+- No continuous verification of deadlines and availability
+- No private durable database hosting
+- No automatic reviewed-opportunity email notifications
+- No production-grade SMTP audit and monitoring infrastructure
+
+### Final Phase 5 Validation
+
+Run:
+
+```powershell
+python -m pytest -v
+```
+
+Expected test count: 127.
+
+The GitHub Actions workflow should continue running tests,
+RSS previews, and database persistence without sending reviewed-
+opportunity emails on a schedule.
 
 #### Source Configuration
 
