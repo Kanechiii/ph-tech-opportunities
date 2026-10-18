@@ -9,7 +9,7 @@ from src.database.schema import (
     initialize_database,
 )
 from src.database.storage import save_opportunity
-from src.database.review_service import record_review
+from review_helpers import record_review
 from src.database.notification_queue import (
     enqueue_notification,
     get_job,

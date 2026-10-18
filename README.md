@@ -13,7 +13,7 @@ A free, open-source Python project that collects and classifies public technolog
 - Deduplicated notification jobs: `pending`, `sending`, `sent`, `failed`, `uncertain`.
 - Consistent atomic SQLite snapshots and validated restoration from GitHub Actions artifacts.
 - Local, explicitly confirmed Gmail SMTP sending for reviewed opportunities; ambiguous submissions are **not** automatically retried.
-- Standalone password-hashing and reviewer-role prototype; **not integrated into the review-writing service**.
+- Local reviewer accounts with password-based authorization enforced for approval and rejection through `record_review()`.
 - Read-only storage-readiness and database-health checks.
 
 ## Setup (Windows / VS Code)
@@ -71,7 +71,7 @@ Artifacts are **not permanent private database hosting**. Before any restore or 
 
 ## Security and limitations
 
-- The existing `record_review()` function still accepts an unauthenticated reviewer label. Password and RBAC helpers are currently a **prototype**, not enforced security.
+- Review approval and rejection require a valid local reviewer account and appropriate permissions. Direct database access, account-store tampering, and historical pre-authentication reviews remain security limitations.
 - SQLite on your computer and SQLite inside GitHub artifacts are separate copies; delivery state is not automatically synchronized.
 - GitHub artifacts from this public repository must be treated as potentially readable by others. Do not store passwords, personal notes, or sensitive reviewer identities in them.
 - Cross-source duplicates are advisory matches; existing rows and review history must not be automatically merged.

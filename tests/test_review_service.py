@@ -16,9 +16,9 @@ from src.database.storage import (
 from src.database.review_service import (
     get_latest_review,
     get_review_history,
-    record_review,
 )
 from src.notification_policy import assess_notification_policy
+from review_helpers import record_review
 
 
 @pytest.fixture

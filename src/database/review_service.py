@@ -5,23 +5,31 @@ This module never sends notifications.
 """
 
 import argparse
+import getpass
 from datetime import datetime, timezone
 
 from src.database.schema import DATABASE_PATH, connect_database
 from src.notification_policy import valid_https_url
+from src.reviewer_accounts import (
+    ACCOUNT_DATABASE,
+    check_permission,
+)
 
 
 def record_review(
     opportunity_id,
     decision,
     evidence_url,
-    reviewer_id="local_operator",
+    reviewer_id=None,
     free_confirmed=False,
     ph_confirmed=False,
     open_confirmed=False,
     database_path=DATABASE_PATH,
+    *,
+    reviewer_password=None,
+    account_database_path=ACCOUNT_DATABASE,
 ):
-    """Append a manual decision and update current review status."""
+    """Append a review only after authenticated authorization."""
 
     if type(opportunity_id) is not int or opportunity_id < 1:
         raise ValueError("Invalid opportunity ID.")
@@ -52,6 +60,39 @@ def record_review(
     if decision == "rejected" and any(confirmations):
         raise ValueError(
             "Rejected reviews cannot contain approval confirmations."
+        )
+
+    # Never trust reviewer_id as evidence of identity.
+    # The account store verifies the password and current role.
+    action = (
+        "approve_opportunity"
+        if decision == "approved"
+        else "reject_opportunity"
+    )
+
+    if not (
+        isinstance(reviewer_id, str)
+        and reviewer_id.strip()
+        and isinstance(reviewer_password, str)
+        and reviewer_password
+    ):
+        raise PermissionError(
+            "Authenticated reviewer credentials are required."
+        )
+
+    try:
+        authorized = check_permission(
+            reviewer_id,
+            reviewer_password,
+            action,
+            account_database_path,
+        )
+    except (ValueError, OSError):
+        authorized = False
+
+    if not authorized:
+        raise PermissionError(
+            "Review authorization denied."
         )
 
     reviewed_at = datetime.now(timezone.utc).isoformat()
@@ -105,7 +146,7 @@ def record_review(
             (
                 opportunity_id,
                 decision,
-                reviewer_id.strip(),
+                reviewer_id,
                 evidence_url,
                 int(free_confirmed),
                 int(ph_confirmed),
@@ -229,7 +270,8 @@ def main():
     review_parser.add_argument("--evidence", required=True)
     review_parser.add_argument(
         "--reviewer",
-        default="local_operator",
+        required=True,
+        help="Existing local reviewer account ID",
     )
 
     args = parser.parse_args()
@@ -279,20 +321,32 @@ def main():
         print("Review canceled. No database changes made.")
         return
 
+    password = getpass.getpass(
+        f"Password for {args.reviewer}: "
+    )
+
     try:
         result = record_review(
             opportunity_id=args.opportunity_id,
             decision=args.decision,
             evidence_url=args.evidence,
             reviewer_id=args.reviewer,
+            reviewer_password=password,
             free_confirmed=free,
             ph_confirmed=ph,
             open_confirmed=is_open,
         )
 
+    except PermissionError:
+        print("Review failed: Access denied.")
+        raise SystemExit(1) from None
+
     except (ValueError, OSError) as error:
         print(f"Review failed: {error}")
         raise SystemExit(1) from None
+
+    finally:
+        password = None
 
     print(f"Review recorded: {result['review_id']}")
     print("No email was sent.")
