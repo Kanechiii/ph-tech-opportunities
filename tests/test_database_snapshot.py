@@ -133,7 +133,74 @@ def test_version_one_artifact_migrates_on_restore(tmp_path):
             "SELECT COUNT(*) FROM opportunities"
         ).fetchone()[0]
 
-        assert version == 2
+        assert version == 3
         assert count == 1
+    finally:
+        connection.close()
+
+
+def test_version_two_snapshot_migrates_to_three(tmp_path):
+    """A version-2 snapshot preserves records during migration."""
+
+    from src.database.schema import (
+        SCHEMA_SQL,
+        MIGRATION_1_TO_2,
+        connect_database,
+    )
+
+    legacy = tmp_path / "version2.sqlite3"
+
+    connection = sqlite3.connect(legacy)
+    try:
+        connection.executescript(SCHEMA_SQL)
+        connection.executescript(MIGRATION_1_TO_2)
+
+        connection.execute(
+            """
+            INSERT INTO opportunities (source_id, url, title)
+            VALUES (?, ?, ?)
+            """,
+            (
+                "github_blog",
+                "https://github.blog/preserved",
+                "Preserved article",
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    archive = tmp_path / "version2.zip"
+    restored = tmp_path / "restored.sqlite3"
+
+    with zipfile.ZipFile(archive, "w") as file:
+        file.write(legacy, "opportunities.sqlite3")
+
+    restore_snapshot(archive, restored)
+
+    assert validate_database(restored) is True
+
+    connection = connect_database(restored)
+    try:
+        version = connection.execute(
+            "PRAGMA user_version"
+        ).fetchone()[0]
+
+        count = connection.execute(
+            "SELECT COUNT(*) FROM opportunities"
+        ).fetchone()[0]
+
+        jobs_table = connection.execute(
+            """
+            SELECT name FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'notification_jobs'
+            """
+        ).fetchone()
+
+        assert version == 3
+        assert count == 1
+        assert jobs_table is not None
+
     finally:
         connection.close()

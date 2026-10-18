@@ -10,7 +10,7 @@ DATABASE_PATH = (
     PROJECT_ROOT / "data" / "opportunities.sqlite3"
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 SCHEMA_SQL = """
@@ -173,6 +173,45 @@ PRAGMA user_version = 2;
 COMMIT;
 """
 
+MIGRATION_2_TO_3 = """
+BEGIN IMMEDIATE;
+
+CREATE TABLE notification_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    opportunity_id INTEGER NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'email'
+        CHECK (channel = 'email'),
+    notification_type TEXT NOT NULL DEFAULT 'new_opportunity',
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+            status IN (
+                'pending', 'sending', 'sent',
+                'failed', 'uncertain'
+            )
+        ),
+    attempt_count INTEGER NOT NULL DEFAULT 0
+        CHECK (attempt_count >= 0),
+    claim_token TEXT,
+    claimed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at TEXT,
+    last_error_type TEXT,
+
+    FOREIGN KEY (opportunity_id)
+        REFERENCES opportunities(id) ON DELETE RESTRICT,
+
+    UNIQUE (opportunity_id, channel, notification_type)
+);
+
+CREATE INDEX idx_notification_jobs_status
+ON notification_jobs (status, created_at);
+
+PRAGMA user_version = 3;
+
+COMMIT;
+"""
+
 def connect_database(database_path=DATABASE_PATH):
     """Open a SQLite connection with integrity settings."""
 
@@ -195,7 +234,7 @@ def connect_database(database_path=DATABASE_PATH):
 
 
 def initialize_database(database_path=DATABASE_PATH):
-    """Initialize or upgrade SQLite without deleting records."""
+    """Initialize or migrate SQLite through schema version 3."""
 
     path = Path(database_path)
     connection = connect_database(path)
@@ -205,7 +244,7 @@ def initialize_database(database_path=DATABASE_PATH):
             "PRAGMA user_version"
         ).fetchone()[0]
 
-        if version not in (0, 1, SCHEMA_VERSION):
+        if version not in (0, 1, 2, SCHEMA_VERSION):
             raise RuntimeError(
                 f"Unsupported database version: {version}"
             )
@@ -216,6 +255,10 @@ def initialize_database(database_path=DATABASE_PATH):
 
         if version == 1:
             connection.executescript(MIGRATION_1_TO_2)
+            version = 2
+
+        if version == 2:
+            connection.executescript(MIGRATION_2_TO_3)
 
         return path
 

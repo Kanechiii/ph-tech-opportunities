@@ -35,13 +35,14 @@ def test_database_file_created(tmp_path):
 
 
 def test_required_tables_exist(database_path):
-    """The database includes all four required tables."""
+    """The database includes all five application tables."""
 
     tables = get_database_tables(database_path)
 
     assert tables == [
         "collection_runs",
         "notification_history",
+        "notification_jobs",
         "opportunities",
         "opportunity_reviews",
     ]

@@ -71,7 +71,7 @@ def test_version_two_review_table(reviewed_item):
             """
         ).fetchone()
 
-        assert version == SCHEMA_VERSION == 2
+        assert version == SCHEMA_VERSION == 3
         assert table is not None
     finally:
         connection.close()

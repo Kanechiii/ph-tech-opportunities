@@ -82,6 +82,9 @@ def validate_database(
         if version >= 2:
             required.add("opportunity_reviews")
 
+        if version >= 3:
+            required.add("notification_jobs")
+
         if not required.issubset(tables):
             raise ValueError("Required database tables are missing.")
 
@@ -175,7 +178,7 @@ def restore_snapshot(
                 # Accept only the known legacy or current schema.
         validate_database(
             temp_path,
-            accepted_versions=(1, SCHEMA_VERSION),
+            accepted_versions=(1, 2, SCHEMA_VERSION),
         )
 
         # Migrate the temporary copy, never the original artifact.
