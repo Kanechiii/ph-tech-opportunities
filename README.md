@@ -109,8 +109,7 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 | 4 | SQLite collection persistence and snapshot restoration |
 | 5 | Review history, eligibility checks, notification queue, and manual delivery |
 | 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
-| 7 (in progress) | Authenticated review writes, account revocation, and security auditing |
-
+| 7 (final verification) | Authenticated reviews, account revocation, audit integrity, two-database migration preflight, and security regression tests |
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
