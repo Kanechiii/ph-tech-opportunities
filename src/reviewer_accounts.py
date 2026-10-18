@@ -12,6 +12,7 @@ from pathlib import Path
 from src.database.schema import PROJECT_ROOT
 from src.reviewer_auth import (
     ACCOUNT_ID_PATTERN,
+    ROLES,
     ReviewerAccount,
     authorize_reviewer,
     hash_password,
@@ -40,9 +41,53 @@ def initialize_accounts(path=ACCOUNT_DATABASE):
                 password_hash TEXT NOT NULL,
                 active INTEGER NOT NULL DEFAULT 1
                     CHECK (active IN (0, 1)),
-                created_at TEXT NOT NULL
+                                created_at TEXT NOT NULL
                     DEFAULT CURRENT_TIMESTAMP
             )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reviewer_account_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                actor_id TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                action TEXT NOT NULL
+                    CHECK (action IN ('role_changed', 'status_changed')),
+                old_value TEXT NOT NULL,
+                new_value TEXT NOT NULL,
+                changed_at TEXT NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS
+                protect_account_audit_updates
+            BEFORE UPDATE ON reviewer_account_audit
+            BEGIN
+                SELECT RAISE(
+                    ABORT,
+                    'Account audit history is append-only'
+                );
+            END
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS
+                protect_account_audit_deletes
+            BEFORE DELETE ON reviewer_account_audit
+            BEGIN
+                SELECT RAISE(
+                    ABORT,
+                    'Account audit history is append-only'
+                );
+            END
             """
         )
 
@@ -164,6 +209,168 @@ def check_permission(
         password,
         action,
     )
+
+def change_account_access(
+    actor_id,
+    actor_password,
+    target_id,
+    *,
+    role=None,
+    active=None,
+    path=ACCOUNT_DATABASE,
+):
+    """Change a stored account with administrator authorization.
+
+    Only one field may change per call. All checks, updates,
+    and audit inserts use the same SQLite transaction.
+    """
+
+    if (role is None) == (active is None):
+        raise ValueError("Specify exactly one account change.")
+
+    if role is not None and role not in ROLES:
+        raise ValueError("Invalid reviewer role.")
+
+    if active is not None and type(active) is not bool:
+        raise ValueError("Active status must be boolean.")
+
+    if not (
+        isinstance(actor_id, str)
+        and isinstance(target_id, str)
+        and ACCOUNT_ID_PATTERN.fullmatch(actor_id)
+        and ACCOUNT_ID_PATTERN.fullmatch(target_id)
+    ):
+        raise ValueError("Invalid account identifier.")
+
+    path = Path(path)
+
+    if not path.is_file():
+        raise PermissionError("Account store unavailable.")
+
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+
+    try:
+        # Serialize the authorization check and account update.
+        connection.execute("BEGIN IMMEDIATE")
+
+        actor_row = connection.execute(
+            """
+            SELECT account_id, role, password_hash, active
+            FROM reviewer_accounts
+            WHERE account_id = ?
+            """,
+            (actor_id,),
+        ).fetchone()
+
+        if actor_row is None:
+            raise PermissionError("Administrator access denied.")
+
+        actor = ReviewerAccount(
+            account_id=actor_row["account_id"],
+            role=actor_row["role"],
+            password_hash=actor_row["password_hash"],
+            active=bool(actor_row["active"]),
+        )
+
+        if not authorize_reviewer(
+            actor,
+            actor_password,
+            "manage_reviewers",
+        ):
+            raise PermissionError("Administrator access denied.")
+
+        target = connection.execute(
+            """
+            SELECT account_id, role, active
+            FROM reviewer_accounts
+            WHERE account_id = ?
+            """,
+            (target_id,),
+        ).fetchone()
+
+        if target is None:
+            raise ValueError("Target account not found.")
+
+        field = "role" if role is not None else "active"
+
+        old_value = target[field]
+        new_value = role if role is not None else int(active)
+
+        if old_value == new_value:
+            return False
+
+        removing_admin = (
+            target["role"] == "administrator"
+            and target["active"] == 1
+            and (
+                (field == "role" and role != "administrator")
+                or (field == "active" and active is False)
+            )
+        )
+
+        if removing_admin:
+            admin_count = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM reviewer_accounts
+                WHERE role = 'administrator'
+                  AND active = 1
+                """
+            ).fetchone()[0]
+
+            if admin_count <= 1:
+                raise PermissionError(
+                    "Cannot remove the last active administrator."
+                )
+
+        if field == "role":
+            connection.execute(
+                """
+                UPDATE reviewer_accounts
+                SET role = ?
+                WHERE account_id = ?
+                """,
+                (role, target_id),
+            )
+            action = "role_changed"
+        else:
+            connection.execute(
+                """
+                UPDATE reviewer_accounts
+                SET active = ?
+                WHERE account_id = ?
+                """,
+                (int(active), target_id),
+            )
+            action = "status_changed"
+
+        connection.execute(
+            """
+            INSERT INTO reviewer_account_audit (
+                actor_id, target_id, action,
+                old_value, new_value
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                actor_id,
+                target_id,
+                action,
+                str(old_value),
+                str(new_value),
+            ),
+        )
+
+        connection.commit()
+        return True
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
 
 
 def main():
