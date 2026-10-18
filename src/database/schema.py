@@ -10,7 +10,7 @@ DATABASE_PATH = (
     PROJECT_ROOT / "data" / "opportunities.sqlite3"
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 SCHEMA_SQL = """
@@ -118,6 +118,60 @@ PRAGMA user_version = 1;
 COMMIT;
 """
 
+MIGRATION_1_TO_2 = """
+BEGIN IMMEDIATE;
+
+CREATE TABLE opportunity_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    opportunity_id INTEGER NOT NULL,
+    decision TEXT NOT NULL
+        CHECK (decision IN ('approved', 'rejected')),
+
+    method TEXT NOT NULL DEFAULT 'manual'
+        CHECK (method = 'manual'),
+
+    reviewer_id TEXT NOT NULL
+        CHECK (length(trim(reviewer_id)) > 0),
+
+    evidence_url TEXT NOT NULL
+        CHECK (length(trim(evidence_url)) > 0),
+
+    free_confirmed INTEGER NOT NULL DEFAULT 0
+        CHECK (free_confirmed IN (0, 1)),
+
+    ph_confirmed INTEGER NOT NULL DEFAULT 0
+        CHECK (ph_confirmed IN (0, 1)),
+
+    open_confirmed INTEGER NOT NULL DEFAULT 0
+        CHECK (open_confirmed IN (0, 1)),
+
+    reviewed_at TEXT NOT NULL,
+
+    FOREIGN KEY (opportunity_id)
+        REFERENCES opportunities(id)
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_reviews_opportunity
+ON opportunity_reviews (opportunity_id, id DESC);
+
+CREATE TRIGGER protect_review_updates
+BEFORE UPDATE ON opportunity_reviews
+BEGIN
+    SELECT RAISE(ABORT, 'Review history is append-only');
+END;
+
+CREATE TRIGGER protect_review_deletes
+BEFORE DELETE ON opportunity_reviews
+BEGIN
+    SELECT RAISE(ABORT, 'Review history is append-only');
+END;
+
+PRAGMA user_version = 2;
+
+COMMIT;
+"""
 
 def connect_database(database_path=DATABASE_PATH):
     """Open a SQLite connection with integrity settings."""
@@ -141,7 +195,7 @@ def connect_database(database_path=DATABASE_PATH):
 
 
 def initialize_database(database_path=DATABASE_PATH):
-    """Create the initial schema without deleting existing data."""
+    """Initialize or upgrade SQLite without deleting records."""
 
     path = Path(database_path)
     connection = connect_database(path)
@@ -151,12 +205,17 @@ def initialize_database(database_path=DATABASE_PATH):
             "PRAGMA user_version"
         ).fetchone()[0]
 
-        if version not in (0, SCHEMA_VERSION):
+        if version not in (0, 1, SCHEMA_VERSION):
             raise RuntimeError(
                 f"Unsupported database version: {version}"
             )
 
-        connection.executescript(SCHEMA_SQL)
+        if version == 0:
+            connection.executescript(SCHEMA_SQL)
+            version = 1
+
+        if version == 1:
+            connection.executescript(MIGRATION_1_TO_2)
 
         return path
 

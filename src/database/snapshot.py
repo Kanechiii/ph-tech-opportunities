@@ -10,6 +10,7 @@ from pathlib import Path
 from src.database.schema import (
     DATABASE_PATH,
     SCHEMA_VERSION,
+    initialize_database,
 )
 
 
@@ -25,10 +26,20 @@ REQUIRED_TABLES = {
 MAX_SNAPSHOT_SIZE = 20 * 1024 * 1024
 
 
-def validate_database(path=DATABASE_PATH):
-    """Inspect an existing SQLite file without creating one."""
+def validate_database(
+    path=DATABASE_PATH,
+    accepted_versions=None,
+):
+    """Validate SQLite structure and integrity.
+
+    Legacy version 1 is only accepted when explicitly requested
+    for migration. Normal validation requires the latest schema.
+    """
 
     path = Path(path)
+
+    if accepted_versions is None:
+        accepted_versions = (SCHEMA_VERSION,)
 
     if not path.is_file():
         raise ValueError("Database snapshot does not exist.")
@@ -53,7 +64,7 @@ def validate_database(path=DATABASE_PATH):
             "PRAGMA user_version"
         ).fetchone()[0]
 
-        if version != SCHEMA_VERSION:
+        if version not in accepted_versions:
             raise ValueError("Unsupported database schema version.")
 
         rows = connection.execute(
@@ -66,7 +77,12 @@ def validate_database(path=DATABASE_PATH):
 
         tables = {row[0] for row in rows}
 
-        if not REQUIRED_TABLES.issubset(tables):
+        required = set(REQUIRED_TABLES)
+
+        if version >= 2:
+            required.add("opportunity_reviews")
+
+        if not required.issubset(tables):
             raise ValueError("Required database tables are missing.")
 
     finally:
@@ -156,7 +172,16 @@ def restore_snapshot(
         with os.fdopen(descriptor, "wb") as file:
             file.write(contents)
 
-        # Validate before replacing the destination.
+                # Accept only the known legacy or current schema.
+        validate_database(
+            temp_path,
+            accepted_versions=(1, SCHEMA_VERSION),
+        )
+
+        # Migrate the temporary copy, never the original artifact.
+        initialize_database(temp_path)
+
+        # Require full current-schema integrity before replacement.
         validate_database(temp_path)
 
         os.replace(temp_path, database_path)

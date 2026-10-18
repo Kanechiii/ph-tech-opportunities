@@ -5,6 +5,7 @@ import zipfile
 
 import pytest
 
+from src.database.schema import SCHEMA_SQL, connect_database
 from src.database.schema import initialize_database
 from src.database.snapshot import (
     create_snapshot,
@@ -86,3 +87,53 @@ def test_invalid_archive_preserves_existing_database(
         restore_snapshot(archive_path, database_path)
 
     assert database_path.read_bytes() == original_bytes
+
+
+def test_version_one_artifact_migrates_on_restore(tmp_path):
+    """Old hosted snapshots upgrade without losing opportunities."""
+
+    legacy = tmp_path / "legacy.sqlite3"
+
+    connection = sqlite3.connect(legacy)
+    try:
+        connection.executescript(SCHEMA_SQL)
+
+        connection.execute(
+            """
+            INSERT INTO opportunities (source_id, url, title)
+            VALUES (?, ?, ?)
+            """,
+            (
+                "github_blog",
+                "https://github.blog/old-article",
+                "Previously collected article",
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    archive = tmp_path / "legacy.zip"
+    restored = tmp_path / "restored.sqlite3"
+
+    with zipfile.ZipFile(archive, "w") as file:
+        file.write(legacy, "opportunities.sqlite3")
+
+    restore_snapshot(archive, restored)
+
+    assert validate_database(restored) is True
+
+    connection = connect_database(restored)
+    try:
+        version = connection.execute(
+            "PRAGMA user_version"
+        ).fetchone()[0]
+
+        count = connection.execute(
+            "SELECT COUNT(*) FROM opportunities"
+        ).fetchone()[0]
+
+        assert version == 2
+        assert count == 1
+    finally:
+        connection.close()
