@@ -593,6 +593,31 @@ Automatic delivery of reviewed opportunities remains disabled.
 - Delivery-state reconciliation
 - Production security and recovery testing
 
+### Step 2 — Hosted Database Preparation
+
+A private PostgreSQL database is under consideration as the future
+authoritative store. Neon is the provisional free-tier candidate.
+
+Current SQLite history remains authoritative and unchanged.
+
+Run the read-only migration inventory:
+
+```powershell
+python -m src.database.storage_readiness
+```
+
+The inventory checks schema version, required tables, SQLite
+integrity, foreign-key violations, review-history triggers, and
+notification-job states.
+
+It does not export records, create databases, or perform migration.
+
+See [STORAGE_MIGRATION_PLAN.md](STORAGE_MIGRATION_PLAN.md) for
+the planned migration, reconciliation, credentials, and rollback
+requirements.
+
+Automatic reviewed-opportunity email delivery remains disabled.
+
 #### Source Configuration
 
 Approved sources are configured in:
