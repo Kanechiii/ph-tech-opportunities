@@ -623,7 +623,7 @@ Tests use mocked SMTP delivery and do not require sending real emails.
 - [x] Phase 1 — Basic Email Automation
 - [x] Phase 2 — GitHub Actions Scheduling
 - [x] Phase 3 — RSS Opportunity Collection
-- [ ] Phase 4 — SQLite and Duplicate Prevention
+- [x] Phase 4 — SQLite and Duplicate Prevention
 - [ ] Phase 5 — Filtering and Validation
 - [ ] Phase 6 — Certification Voucher Monitoring
 - [ ] Phase 7 — Philippine Technology Event Integrations
