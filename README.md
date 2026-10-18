@@ -645,6 +645,38 @@ security safeguards, and PostgreSQL integration plan.
 The SQLite database remains at schema version 3.
 Automatic reviewed-opportunity email delivery remains disabled.
 
+### Phase 6 Step 4 — Opportunity Quality Analysis
+
+A read-only analysis module now helps identify likely duplicate
+announcements and prioritize candidate opportunities.
+
+Run:
+
+```powershell
+python -m src.collectors.opportunity_quality
+```
+
+To analyze up to 500 stored opportunities:
+
+```powershell
+python -m src.collectors.opportunity_quality --limit 500
+```
+
+The analyzer provides:
+
+- Advisory free, Philippine eligibility, and registration hints
+- Explainable candidate priority scores
+- Conservative URL normalization
+- Possible cross-source duplicate findings
+- No automatic verification or database modifications
+
+See [OPPORTUNITY_QUALITY_DESIGN.md](OPPORTUNITY_QUALITY_DESIGN.md)
+for source evaluation, verification requirements, and limitations.
+
+The existing SQLite schema remains version 3.
+Historical reviews and notification records remain unchanged.
+Scheduled reviewed-opportunity email delivery remains disabled.
+
 #### Source Configuration
 
 Approved sources are configured in:
