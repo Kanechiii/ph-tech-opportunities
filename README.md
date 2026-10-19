@@ -2,7 +2,7 @@
 
 A free, open-source Python project that collects and classifies public technology announcements for people in the Philippines. It focuses on **free certification exam vouchers, technology events, and hackathons**.
 
-**Status:** Phases 1–6 complete; Phase 7 security hardening in progress. **Development system, not production-ready.** Scheduled collection is enabled; reviewed-opportunity email delivery remains manual-only.
+**Status:** Phases 1–7 complete; Phase 8 data protection in progress. **Development system, not production-ready.** Scheduled collection is enabled; reviewed-opportunity email delivery remains manual-only.
 
 ## Features
 
@@ -47,6 +47,7 @@ Edit your local `.env` only if you intend to run a manual Gmail test. Never comm
 | Audit database health (read only) | `python -m src.database.health_audit` |
 | Validate local SQLite | `python -m src.database.snapshot validate` |
 | Create validated SQLite backup | `python -m src.database.snapshot backup` |
+| Back up both local databases | `python -m src.database.local_backup --destination "PATH"` |
 
 Replace example opportunity or job IDs with actual IDs. The quality analyzer scores hints, not verified opportunities. Do **not** approve an opportunity solely to make a demo work.
 
@@ -109,7 +110,8 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 | 4 | SQLite collection persistence and snapshot restoration |
 | 5 | Review history, eligibility checks, notification queue, and manual delivery |
 | 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
-| 7 (final verification) | Authenticated reviews, account revocation, audit integrity, two-database migration preflight, and security regression tests |
+| 7 | Authenticated reviews, role revocation, account auditing, migration preflight, and security testing |
+| 8 (in progress) | Independent backups, recovery validation, and data durability |
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
