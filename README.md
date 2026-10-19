@@ -47,10 +47,10 @@ Edit your local `.env` only if you intend to run a manual Gmail test. Never comm
 | Audit database health (read only) | `python -m src.database.health_audit` |
 | Validate local SQLite | `python -m src.database.snapshot validate` |
 | Create validated SQLite backup | `python -m src.database.snapshot backup` |
-| Back up both local databases | `python -m src.database.local_backup --destination "PATH"` |
-| Test isolated backup recovery | `python -m src.database.local_recovery --backup "BACKUP_PATH" --destination "NEW_RECOVERY_PATH"` |
+| Back up both local databases | `python -m src.database.local_backup --destination "PATH" --authenticate` |
+| Test authenticated isolated recovery | `python -m src.database.local_recovery --backup "BACKUP_PATH" --destination "NEW_RECOVERY_PATH" --authenticate` |
 
-Recovery drills create new isolated copies only. They never replace live databases. Both backup and recovery directories contain sensitive reviewer-account data and must be privately protected.
+Recovery drills never replace live databases. New authenticated backups use a separate passphrase to protect manifest integrity, not confidentiality. Older unsigned backups remain supported in legacy mode; use `--authenticate` for new backups and recovery drills. Store passphrases securely and protect all backup files from unauthorized access.
 
 Replace example opportunity or job IDs with actual IDs. The quality analyzer scores hints, not verified opportunities. Do **not** approve an opportunity solely to make a demo work.
 

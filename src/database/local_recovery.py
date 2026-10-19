@@ -4,6 +4,7 @@ Never replaces live databases, sends email, or migrates storage.
 """
 
 import argparse
+import getpass
 import json
 import os
 import re
@@ -12,7 +13,10 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-from src.database.local_backup import file_hash
+from src.database.local_backup import (
+    file_hash,
+    verify_manifest_authentication,
+)
 from src.database.schema import PROJECT_ROOT
 from src.database.storage_readiness import inspect_storage
 from src.database.migration_preflight import inspect_accounts
@@ -29,8 +33,13 @@ BACKUP_FILES = frozenset((
 ))
 
 
-def validate_backup_directory(backup_directory):
-    """Verify the manifest, hashes, and both SQLite schemas."""
+def validate_backup_directory(
+    backup_directory,
+    *,
+    authentication_password=None,
+    require_authenticated=False,
+):
+    """Verify checksums, optional HMAC, and both SQLite schemas."""
 
     backup = Path(backup_directory).resolve(strict=True)
 
@@ -66,6 +75,12 @@ def validate_backup_directory(backup_directory):
         or set(manifest["files"]) != set(DATABASE_FILES)
     ):
         raise ValueError("Unsupported backup manifest.")
+
+    verify_manifest_authentication(
+        manifest,
+        authentication_password,
+        require_authenticated=require_authenticated,
+    )
 
     for name in DATABASE_FILES:
         metadata = manifest["files"][name]
@@ -112,8 +127,11 @@ def validate_backup_directory(backup_directory):
 def recover_to_isolated_directory(
     backup_directory,
     destination_directory,
+    *,
+    authentication_password=None,
+    require_authenticated=False,
 ):
-    """Copy verified backup files into a new external folder only."""
+    """Recover verified backups into an isolated directory only."""
 
     backup = Path(backup_directory).resolve(strict=True)
     destination = Path(destination_directory).resolve()
@@ -138,8 +156,12 @@ def recover_to_isolated_directory(
             "Recovery destination already exists."
         )
 
-    # Check before creating any recovery files.
-    manifest = validate_backup_directory(backup)
+    # Authenticate and validate before creating recovery files.
+    manifest = validate_backup_directory(
+        backup,
+        authentication_password=authentication_password,
+        require_authenticated=require_authenticated,
+    )
 
     destination.parent.mkdir(parents=True, exist_ok=True)
 
@@ -199,6 +221,9 @@ def recover_to_isolated_directory(
 
         return {
             "recovery_verified": True,
+            "backup_authenticated": (
+                "authentication" in manifest
+            ),
             "destination": str(destination),
             "files": list(DATABASE_FILES),
             "opportunity_records": (
@@ -234,12 +259,27 @@ def main():
         help="New recovery directory outside the project",
     )
 
+    parser.add_argument(
+        "--authenticate",
+        action="store_true",
+        help="Require and verify an authenticated backup",
+    )
+
     args = parser.parse_args()
+
+    password = None
+
+    if args.authenticate:
+        password = getpass.getpass(
+            "Backup authentication passphrase: "
+        )
 
     try:
         report = recover_to_isolated_directory(
             args.backup,
             args.destination,
+            authentication_password=password,
+            require_authenticated=args.authenticate,
         )
 
     except (

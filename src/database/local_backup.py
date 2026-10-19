@@ -5,9 +5,12 @@ modifies sources, uploads files, or sends email.
 """
 
 import argparse
+import getpass
 import hashlib
+import hmac
 import json
 import os
+import secrets
 import shutil
 import sqlite3
 import tempfile
@@ -32,6 +35,145 @@ def file_hash(path):
 
     return digest.hexdigest()
 
+AUTH_SCHEME = "scrypt-hmac-sha256-v1"
+
+
+def _manifest_bytes(manifest):
+    """Canonical bytes of manifest data excluding its authenticator."""
+
+    payload = {
+        key: value
+        for key, value in manifest.items()
+        if key != "authentication"
+    }
+
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+
+
+def _derive_backup_key(password, salt):
+    """Derive a separate HMAC key from the backup passphrase."""
+
+    return hashlib.scrypt(
+        password.encode("utf-8"),
+        salt=salt,
+        n=2**14,
+        r=8,
+        p=1,
+        dklen=32,
+    )
+
+
+def authenticate_manifest(manifest, password):
+    """Add an HMAC authenticator without storing the passphrase."""
+
+    if (
+        type(password) is not str
+        or not 16 <= len(password) <= 256
+    ):
+        raise ValueError(
+            "Backup passphrase must contain 16 to 256 characters."
+        )
+
+    if "authentication" in manifest:
+        raise ValueError("Manifest is already authenticated.")
+
+    salt = secrets.token_bytes(16)
+    key = _derive_backup_key(password, salt)
+
+    signature = hmac.new(
+        key,
+        _manifest_bytes(manifest),
+        hashlib.sha256,
+    ).hexdigest()
+
+    manifest["authentication"] = {
+        "scheme": AUTH_SCHEME,
+        "salt": salt.hex(),
+        "hmac_sha256": signature,
+    }
+
+    return manifest
+
+
+def verify_manifest_authentication(
+    manifest,
+    password=None,
+    *,
+    require_authenticated=False,
+):
+    """Verify an authenticated manifest or identify a legacy one."""
+
+    authentication = manifest.get("authentication")
+
+    if "authentication" in manifest and authentication is None:
+        raise ValueError("Invalid backup authentication metadata.")
+
+    if authentication is None:
+        if require_authenticated:
+            raise ValueError(
+                "Authenticated backup required; legacy backup refused."
+            )
+
+        if password is not None:
+            raise ValueError(
+                "Backup has no authentication signature."
+            )
+
+        return False
+
+    if (
+        not isinstance(authentication, dict)
+        or set(authentication) != {
+            "scheme", "salt", "hmac_sha256"
+        }
+        or authentication.get("scheme") != AUTH_SCHEME
+    ):
+        raise ValueError("Invalid backup authentication metadata.")
+
+    if type(password) is not str or not password:
+        raise ValueError(
+            "Backup authentication passphrase is required."
+        )
+
+    salt_hex = authentication["salt"]
+    signature = authentication["hmac_sha256"]
+
+    if (
+        not isinstance(salt_hex, str)
+        or not isinstance(signature, str)
+        or len(salt_hex) != 32
+        or len(signature) != 64
+    ):
+        raise ValueError("Invalid backup authentication metadata.")
+
+    try:
+        salt = bytes.fromhex(salt_hex)
+        expected_signature = bytes.fromhex(signature)
+    except ValueError as error:
+        raise ValueError(
+            "Invalid backup authentication metadata."
+        ) from error
+
+    actual_signature = hmac.new(
+        _derive_backup_key(password, salt),
+        _manifest_bytes(manifest),
+        hashlib.sha256,
+    ).digest()
+
+    if not hmac.compare_digest(
+        actual_signature,
+        expected_signature,
+    ):
+        raise ValueError(
+            "Backup authentication failed."
+        )
+
+    return True
 
 def copy_sqlite(source_path, destination_path):
     """Use SQLite's online backup API for a consistent copy."""
@@ -61,8 +203,10 @@ def create_local_backup(
     destination,
     opportunity_path=DATABASE_PATH,
     account_path=ACCOUNT_DATABASE,
+    *,
+    authentication_password=None,
 ):
-    """Create a new, validated two-database backup directory."""
+    """Create a verified backup with optional manifest authentication."""
 
     destination = Path(destination).resolve()
     opportunity_path = Path(opportunity_path).resolve()
@@ -142,6 +286,12 @@ def create_local_backup(
             },
         }
 
+        if authentication_password is not None:
+            authenticate_manifest(
+                manifest,
+                authentication_password,
+            )
+
         manifest_path = temporary / "manifest.json"
         manifest_path.write_text(
             json.dumps(manifest, indent=2, sort_keys=True),
@@ -160,6 +310,9 @@ def create_local_backup(
             "destination": str(destination),
             "files": sorted(manifest["files"]),
             "verified": True,
+            "authenticated": (
+                "authentication" in manifest
+            ),
             "sources_modified": False,
             "email_sent": False,
         }
@@ -180,10 +333,32 @@ def main():
         help="New private backup folder outside the project",
     )
 
+    parser.add_argument(
+        "--authenticate",
+        action="store_true",
+        help="Protect manifest integrity using a backup passphrase",
+    )
+
     args = parser.parse_args()
 
+    password = None
+
+    if args.authenticate:
+        password = getpass.getpass(
+            "New backup authentication passphrase: "
+        )
+        confirmation = getpass.getpass(
+            "Confirm backup passphrase: "
+        )
+
+        if password != confirmation:
+            raise SystemExit("Backup passphrases do not match.")
+
     try:
-        result = create_local_backup(args.destination)
+        result = create_local_backup(
+            args.destination,
+            authentication_password=password,
+        )
 
     except (
         ValueError,
