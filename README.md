@@ -48,6 +48,9 @@ Edit your local `.env` only if you intend to run a manual Gmail test. Never comm
 | Validate local SQLite | `python -m src.database.snapshot validate` |
 | Create validated SQLite backup | `python -m src.database.snapshot backup` |
 | Back up both local databases | `python -m src.database.local_backup --destination "PATH"` |
+| Test isolated backup recovery | `python -m src.database.local_recovery --backup "BACKUP_PATH" --destination "NEW_RECOVERY_PATH"` |
+
+Recovery drills create new isolated copies only. They never replace live databases. Both backup and recovery directories contain sensitive reviewer-account data and must be privately protected.
 
 Replace example opportunity or job IDs with actual IDs. The quality analyzer scores hints, not verified opportunities. Do **not** approve an opportunity solely to make a demo work.
 
