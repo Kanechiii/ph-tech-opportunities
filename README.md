@@ -2,7 +2,7 @@
 
 A free, open-source Python project that collects and classifies public technology announcements for people in the Philippines. It focuses on **free certification exam vouchers, technology events, and hackathons**.
 
-**Status:** Phases 1–7 complete; Phase 8 data protection in progress. **Development system, not production-ready.** Scheduled collection is enabled; reviewed-opportunity email delivery remains manual-only.
+**Status:** Phases 1–7 complete; Phase 8 final acceptance in progress. **Development system, not production-ready.** Scheduled collection is enabled; reviewed-opportunity email delivery remains manual-only.
 
 ## Features
 
@@ -115,7 +115,7 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 | 5 | Review history, eligibility checks, notification queue, and manual delivery |
 | 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
 | 7 | Authenticated reviews, role revocation, account auditing, migration preflight, and security testing |
-| 8 (in progress) | Independent backups, authenticated recovery, storage reconciliation, and data durability |
+| 8 (final acceptance) | Authenticated two-database backups, isolated recovery, tamper rejection, reconciliation, and fail-closed cutover checks |
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
