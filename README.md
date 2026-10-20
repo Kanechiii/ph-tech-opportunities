@@ -49,6 +49,7 @@ Edit your local `.env` only if you intend to run a manual Gmail test. Never comm
 | Create validated SQLite backup | `python -m src.database.snapshot backup` |
 | Back up both local databases | `python -m src.database.local_backup --destination "PATH" --authenticate` |
 | Test authenticated isolated recovery | `python -m src.database.local_recovery --backup "BACKUP_PATH" --destination "NEW_RECOVERY_PATH" --authenticate` |
+| Compare database pairs before cutover | `python -m src.database.cutover_readiness --candidate-opportunities "PATH" --candidate-accounts "PATH"` |
 
 Recovery drills never replace live databases. New authenticated backups use a separate passphrase to protect manifest integrity, not confidentiality. Older unsigned backups remain supported in legacy mode; use `--authenticate` for new backups and recovery drills. Store passphrases securely and protect all backup files from unauthorized access.
 
@@ -114,7 +115,7 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 | 5 | Review history, eligibility checks, notification queue, and manual delivery |
 | 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
 | 7 | Authenticated reviews, role revocation, account auditing, migration preflight, and security testing |
-| 8 (in progress) | Independent backups, recovery validation, and data durability |
+| 8 (in progress) | Independent backups, authenticated recovery, storage reconciliation, and data durability |
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
