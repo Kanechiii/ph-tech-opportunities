@@ -21,15 +21,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "config/sources.yaml"
-      - "requirements.txt"
-      - ".github/workflows/automation.yml"
-      - ".github/dependabot.yml"
-      - ".github/SECURITY.md"
-      - "README.md"
 
   push:
     branches:
