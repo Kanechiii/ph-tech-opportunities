@@ -1,0 +1,69 @@
+name: Dependency Security
+
+# This workflow audits dependencies only. No database, mail, or deployment
+# secrets are available to its jobs.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - "requirements.txt"
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+  schedule:
+    # Weekly Monday 02:00 UTC; no operational application jobs run here.
+    - cron: "0 2 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  python-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install application dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: Install vulnerability audit tool
+        run: |
+          python -m pip install "pip-audit>=2.9,<3"
+
+      - name: Audit declared Python dependencies
+        run: |
+          python -m pip_audit --requirement requirements.txt
+
+  dependency-review:
+    name: Dependency Review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Review introduced dependency vulnerabilities
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
