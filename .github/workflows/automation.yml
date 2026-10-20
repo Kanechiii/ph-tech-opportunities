@@ -1,8 +1,7 @@
 name: PH Tech Opportunities Automation
 
-# Phase 2 - Step 3
-# Automated testing with optional manual email delivery.
-# Scheduled execution is not enabled yet.
+# Tests run on pull requests and pushes; scheduled collection stays unchanged.
+# Reviewed-opportunity email delivery remains local and manual-only.
 
 on:
   workflow_dispatch:
@@ -18,6 +17,19 @@ on:
         required: true
         type: boolean
         default: false
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "config/sources.yaml"
+      - "requirements.txt"
+      - ".github/workflows/automation.yml"
+      - ".github/dependabot.yml"
+      - ".github/SECURITY.md"
+      - "README.md"
 
   push:
     branches:
