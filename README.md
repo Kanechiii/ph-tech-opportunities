@@ -116,11 +116,14 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 | 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
 | 7 | Authenticated reviews, role revocation, account auditing, migration preflight, and security testing |
 | 8 | Authenticated two-database backups, isolated recovery, tamper rejection, reconciliation, and fail-closed cutover checks |
+| 9 (acceptance pending) | Protected main branch, private vulnerability reporting, dependency security checks, CI review, and open-source contribution guidance |
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
 
 ## Open-source contributions
+
+Read the [contribution guidelines](CONTRIBUTING.md) before opening a pull request.
 
 This project is MIT-licensed and welcomes reproducible bug reports, documentation improvements, tests, and narrowly scoped pull requests. Before submitting changes, run `python -m pytest -v`. Pull requests to `main` run the test job automatically; they do not send reviewed-opportunity emails or replace hosted SQLite snapshots. Keep credentials and any real SQLite or backup files out of issues, commits, and CI artifacts.
 
