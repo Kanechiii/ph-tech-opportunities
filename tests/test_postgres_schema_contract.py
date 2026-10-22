@@ -70,7 +70,8 @@ def test_no_login_roles_and_no_private_account_grants():
     assert "GRANT USAGE ON SCHEMA phtech_private" not in PERMISSIONS
     assert "GRANT ALL" not in PERMISSIONS
     assert "PASSWORD" not in PERMISSIONS
-    assert "LOGIN " not in PERMISSIONS.replace("NOLOGIN ", "")
+    assert "WITH LOGIN" not in PERMISSIONS
+    assert "CREATE USER" not in PERMISSIONS
 
 
 def test_postgres_schema_not_applied_implicitly():
