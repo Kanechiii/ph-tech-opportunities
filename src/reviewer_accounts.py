@@ -202,9 +202,8 @@ def check_permission(
 
     account = load_account(account_id, path)
 
-    if account is None:
-        return False
-
+    # Unknown accounts must consume a failure budget too. Returning early
+    # would allow unlimited identifier enumeration across CLI invocations.
     return authorize_with_throttle(
         account, account_id, password, action, path
     )
