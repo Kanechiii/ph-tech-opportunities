@@ -6,6 +6,8 @@ This module never sends notifications.
 
 import argparse
 import getpass
+import sqlite3
+from pathlib import Path
 from datetime import datetime, timezone
 
 from src.database.schema import DATABASE_PATH, connect_database
@@ -80,26 +82,39 @@ def record_review(
             "Authenticated reviewer credentials are required."
         )
 
+    # Hold the account database's writer reservation until the review
+    # transaction commits. An administrator cannot commit revocation
+    # while a previously authorized review is being recorded.
+    #
+    # Consistent lock order is account DB -> opportunity DB. A separate
+    # throttle ledger is touched inside check_permission.
+    account_connection = None
+    connection = None
     try:
-        authorized = check_permission(
-            reviewer_id,
-            reviewer_password,
-            action,
-            account_database_path,
-        )
-    except (ValueError, OSError):
-        authorized = False
+        accounts_path = account_database_path
+        if not isinstance(accounts_path, (str, Path)):
+            raise PermissionError("Review authorization denied.")
+        accounts_path = Path(accounts_path)
+        if not accounts_path.is_file():
+            raise PermissionError("Review authorization denied.")
+        account_connection = sqlite3.connect(str(accounts_path), timeout=10)
+        account_connection.execute("PRAGMA busy_timeout = 10000")
+        account_connection.execute("BEGIN IMMEDIATE")
 
-    if not authorized:
-        raise PermissionError(
-            "Review authorization denied."
-        )
+        try:
+            authorized = check_permission(
+                reviewer_id,
+                reviewer_password,
+                action,
+                account_database_path,
+            )
+        except (ValueError, OSError, sqlite3.Error, PermissionError):
+            authorized = False
+        if not authorized:
+            raise PermissionError("Review authorization denied.")
 
-    reviewed_at = datetime.now(timezone.utc).isoformat()
-
-    connection = connect_database(database_path)
-
-    try:
+        reviewed_at = datetime.now(timezone.utc).isoformat()
+        connection = connect_database(database_path)
         connection.execute("BEGIN IMMEDIATE")
 
         opportunity = connection.execute(
@@ -182,6 +197,7 @@ def record_review(
             )
 
         connection.commit()
+        account_connection.commit()
 
         return {
             "review_id": cursor.lastrowid,
@@ -191,11 +207,17 @@ def record_review(
         }
 
     except Exception:
-        connection.rollback()
+        if connection is not None:
+            connection.rollback()
+        if account_connection is not None:
+            account_connection.rollback()
         raise
 
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
+        if account_connection is not None:
+            account_connection.close()
 
 
 def get_review_history(
