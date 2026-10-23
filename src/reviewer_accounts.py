@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from src.database.schema import PROJECT_ROOT
+from src.reviewer_throttle import authorize_with_throttle
 from src.reviewer_auth import (
     ACCOUNT_ID_PATTERN,
     ROLES,
@@ -204,10 +205,8 @@ def check_permission(
     if account is None:
         return False
 
-    return authorize_reviewer(
-        account,
-        password,
-        action,
+    return authorize_with_throttle(
+        account, account_id, password, action, path
     )
 
 def change_account_access(
@@ -273,10 +272,8 @@ def change_account_access(
             active=bool(actor_row["active"]),
         )
 
-        if not authorize_reviewer(
-            actor,
-            actor_password,
-            "manage_reviewers",
+        if not authorize_with_throttle(
+            actor, actor_id, actor_password, "manage_reviewers", path
         ):
             raise PermissionError("Administrator access denied.")
 
