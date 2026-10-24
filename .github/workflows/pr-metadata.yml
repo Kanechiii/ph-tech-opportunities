@@ -1,0 +1,61 @@
+name: PR metadata
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  metadata:
+    name: Assign owner and phase label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply safe pull request metadata
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Metadata only: never checkout or execute PR-controlled code.
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+            // The established personal project owner is the only assignee.
+            const assignee = 'Kanechiii';
+            if (owner !== assignee) {
+              core.setFailed('Unexpected repository owner; refusing automatic assignment');
+              return;
+            }
+            await github.rest.issues.addAssignees({
+              owner, repo, issue_number, assignees: [assignee]
+            });
+
+            // Infer a single phase from a branch name; never use untrusted
+            // PR bodies as labels or dynamically execute their contents.
+            const branch = context.payload.pull_request.head.ref;
+            const match = /^phase(\d{1,2})\/step\d+[-/]/i.exec(branch);
+            if (!match) {
+              core.info('No phase-labeled branch detected; assignment applied only.');
+              return;
+            }
+            const number = Number(match[1]);
+            if (!Number.isInteger(number) || number < 1 || number > 99) {
+              core.info('Invalid phase number; refusing label.');
+              return;
+            }
+            const label = `phase:${String(number).padStart(2, '0')}`;
+            try {
+              await github.rest.issues.getLabel({owner, repo, name: label});
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner, repo, name: label, color: 'ededed',
+                description: `Project development phase ${number}`
+              });
+            }
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number, labels: [label]
+            });
