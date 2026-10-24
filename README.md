@@ -2,7 +2,7 @@
 
 A free, open-source Python project that collects and classifies public technology announcements for people in the Philippines. It focuses on **free certification exam vouchers, technology events, and hackathons**.
 
-**Status:** Phases 1–8 complete; production hardening in progress. **Development system, not production-ready.** Scheduled collection is enabled; reviewed-opportunity email delivery remains manual-only.
+**Status:** **Phases 1–12 complete within their approved development scopes.** Phase 13 has **not started**. **Not production-ready.** SQLite remains authoritative; scheduled collection/previews are enabled, while reviewed-opportunity email delivery remains **manual-only**. No real-data PostgreSQL migration, backend cutover, or automatic reviewed-opportunity delivery has been approved.
 
 ## Features
 
@@ -15,6 +15,9 @@ A free, open-source Python project that collects and classifies public technolog
 - Local, explicitly confirmed Gmail SMTP sending for reviewed opportunities; ambiguous submissions are **not** automatically retried.
 - Local reviewer accounts with password-based authorization enforced for approval and rejection through `record_review()`.
 - Read-only storage-readiness and database-health checks.
+- Local persistent reviewer login throttling (five failures trigger a 15-minute lockout); review authorization consistency and account-audit safeguards.
+- Read-only source-history reconciliation, synthetic PostgreSQL migration-contract checks, offline backend activation guards, and final production-readiness reports.
+- Strict **design-only** AES-256-GCM encrypted-backup envelope specification; **actual encrypted backup/recovery is not yet implemented**.
 
 ## Setup (Windows / VS Code)
 
@@ -102,21 +105,46 @@ Check permissions:
 python -m src.reviewer_accounts check local_admin approve_opportunity
 ```
 
-Approval and rejection require authenticated local reviewer accounts. Administrator-authorized role and status changes have a private append-only audit trail. Password verifiers remain outside GitHub. Login rate limiting, secure account recovery, and protection against direct database tampering are not yet implemented.
+Approval and rejection require authenticated local reviewer accounts. Administrator-authorized role and status changes have a private append-only audit trail. Password verifiers remain outside GitHub. Local per-account login throttling is implemented; secure account recovery, session management, Windows ACL review, and protection against direct database tampering remain incomplete.
 
-## Development milestones
+## Development roadmap
 
-| Phase | Completed scope |
-|---|---|
-| 1 | Python foundation and Gmail SMTP test sender |
-| 2 | GitHub Actions testing, scheduling, and secrets |
-| 3 | RSS collection, source allowlist, and classification |
-| 4 | SQLite collection persistence and snapshot restoration |
-| 5 | Review history, eligibility checks, notification queue, and manual delivery |
-| 6 | Atomic backups, storage preparation, reviewer-auth design, quality analysis, and health audit |
-| 7 | Authenticated reviews, role revocation, account auditing, migration preflight, and security testing |
-| 8 | Authenticated two-database backups, isolated recovery, tamper rejection, reconciliation, and fail-closed cutover checks |
-| 9 (acceptance pending) | Protected main branch, private vulnerability reporting, dependency security checks, CI review, and open-source contribution guidance |
+**Completed:** Phases 1–12, within their explicitly bounded development and safety scopes. Completion **does not mean production readiness**. No Phase 13 work has started.
+
+| Phase | Status | Delivered scope |
+|---|---|---|
+| 1 — Local foundation | Complete | Python project, environment setup, Gmail SMTP test sender |
+| 2 — GitHub Actions | Complete | CI, secrets, scheduled preview/collection, manual-only test email |
+| 3 — Opportunity discovery | Complete | RSS/Atom sources, allowlist, keyword classification, unverified labeling |
+| 4 — SQLite persistence | Complete | History, duplicate detection, durable workflow snapshot handling |
+| 5 — Verification and notifications | Complete | Manual reviews, evidence history, queue, safe manual delivery |
+| 6 — Reliability foundations | Complete | Atomic snapshots, storage research, reviewer auth design, quality scoring, health audit |
+| 7 — Reviewer enforcement | Complete | Local reviewer accounts, authorized reviews, role/status auditing, migration preflight |
+| 8 — Backup and cutover checks | Complete | Authenticated **plaintext** two-DB backups, isolated recovery, reconciliation and fail-closed checks |
+| 9 — Open-source readiness | Complete | Protected branch review, security reporting, dependency audits, contribution guidance |
+| 10 — PostgreSQL staging foundation | Complete | Seven-table schema/roles, isolated **synthetic-only** rehearsal, migration inventory and acceptance |
+| 11 — Security hardening foundations | Complete | Local credential throttle, review authorization serialization, audit/confidentiality checks |
+| 12 — Production-readiness foundations | Complete | Source-history gate, **encryption design only**, offline migration/runtime safety checks, synthetic recovery, final blockers report |
+
+### Remaining work — not started or not approved
+
+These are **proposed workstreams, not completed phases or authorized deployment actions**:
+
+| Priority | Proposed work | Required result |
+|---|---|---|
+| Next (Phase 13 proposal) | Encrypted backups and independent recovery | Implement authenticated encryption, isolated decryption/restore, and end-to-end tamper tests; retain existing backups |
+| Critical | Source reconciliation and migration | Resolve local/hosted SQLite divergence, preserve append-only histories and `sent`/`uncertain` jobs; verify real-data import only after separate authorization |
+| Critical | PostgreSQL application adapter | Least-privilege runtime integration, credential rotation, consistency validation, rollback drills and explicit cutover approval |
+| High | Authentication and file security | Reviewer account recovery/session defenses, Windows ACL checks, tamper-resistant storage boundaries |
+| High | Delivery authorization and operations | Resolve uncertain SMTP outcomes without duplicate sends; audit, observability, alerting, and hosted recovery |
+| Medium | Philippine opportunity coverage | Expand reviewed sources for vouchers, events and hackathons |
+
+**Safety boundary:** Do not auto-resolve ambiguous deliveries; modify original review/account audits; upload private SQLite files; treat Neon staging as production; switch runtime backends; or enable scheduled reviewed-opportunity email delivery without separate explicit authorization.
+
+### Pull requests and phase tracking
+
+Project PR titles follow **Conventional Commits**: `type(scope): short imperative description` (for example, `fix(auth): serialize review authorization`). **Do not put phase or step numbers in titles**; associate the PR with a `phase:NN` label instead. PR descriptions use short **Scope / Validation / Safety** sections. PRs are assigned to [@Kanechiii](https://github.com/Kanechiii); a metadata-only workflow adds future assignments and phase labels from branch names such as `phase13/step1-something`. Dependabot's conventional titles and original changelogs are preserved.
+
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
 Licensed under the [MIT License](LICENSE).
