@@ -16,3 +16,10 @@ The synthetic bundle writer now encrypts in memory, writes **ciphertext only** i
 **Limitations not yet solved:** a concurrent actor can race the final existence check; portable Python `os.rename` does not guarantee *no replacement* of an attacker-created empty destination directory on every platform. Therefore the parent directory must be under exclusive trusted ownership; the implementation is **not approved for hostile/shared directories or real backups**. Power failure durability, directory fsync on Windows, NTFS ACL verification, hard links, path traversal via intermediate symlinks, interruption before cleanup, secure erase of temporary ciphertext, and malicious filesystem mutation remain unverified. A platform-specific atomic no-replace publication primitive and comprehensive filesystem threat tests are required before operational use.
 
 Successful synthetic CI is acceptance of this narrow development test only, never proof of secure backup confidentiality or production disaster recovery.
+
+
+## Step 4: bounded synthetic reads and link checks
+
+The synthetic reader now refuses any path containing a symbolic-link ancestor, requires each encrypted file and manifest to be a **single-linked regular file**, and reads through bounded file descriptors using `lstat`, `fstat`, inode/size comparisons, and `O_NOFOLLOW` on platforms that expose it. The check limits the amount of ciphertext and envelope data loaded into memory. New offline tests cover hard links, linked parents, oversized ciphertext and metadata, and file replacement between preliminary metadata inspection and opening.
+
+**Residual risk:** This does not make paths or publication atomic against hostile concurrent writers. Windows security descriptors, inherited NTFS ACLs, process interruption, intermediate directory replacement, platform-specific atomic no-replace publication, and durability semantics still require independent verification. Consequently **only synthetic test fixtures are permitted**; no operational backup or recovery CLI is exposed.
