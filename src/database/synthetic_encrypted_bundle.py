@@ -95,13 +95,19 @@ def write_synthetic_encrypted_bundle(destination, payloads, passphrase):
 def _read_regular_no_follow(path, maximum):
     """Read bounded regular-file bytes without following final symlinks.
 
-    A descriptor-level check closes the stat-then-open symlink substitution
-    gap on platforms with O_NOFOLLOW. Platforms without that flag are
-    deliberately unsupported for this synthetic hardened reader.
+    Use O_NOFOLLOW where available (POSIX). Windows lacks this flag in
+    Python, so pre- and post-open identity checks are best-effort only.
+    These synthetic helpers are NOT cleared for hostile filesystem paths.
     """
-    if not hasattr(os, "O_NOFOLLOW"):
-        raise ValueError("Secure synthetic file opening is unavailable.")
-    flags = os.O_RDONLY | os.O_NOFOLLOW
+    try:
+        before = path.lstat()
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError("Unsafe synthetic bundle file.")
+    except OSError:
+        raise ValueError("Unsafe synthetic bundle file.") from None
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
     if hasattr(os, "O_BINARY"):
         flags |= os.O_BINARY
     if hasattr(os, "O_NONBLOCK"):
@@ -120,7 +126,12 @@ def _read_regular_no_follow(path, maximum):
                 raise ValueError("Oversized synthetic bundle file.")
             # If a concurrent actor changed the pathname, reject the read.
             named = path.lstat()
-            if (named.st_dev, named.st_ino) != (opened.st_dev, opened.st_ino):
+            identities = (before, named)
+            if any(
+                (item.st_dev, item.st_ino) != (opened.st_dev, opened.st_ino)
+                or not stat.S_ISREG(item.st_mode)
+                for item in identities
+            ):
                 raise ValueError("Synthetic bundle file changed while reading.")
             after = os.fstat(stream.fileno())
             if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) != (
