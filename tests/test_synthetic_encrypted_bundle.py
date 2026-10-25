@@ -116,3 +116,87 @@ def test_invalid_fixture_does_not_create_directory(tmp_path):
     with pytest.raises(ValueError):
         write_synthetic_encrypted_bundle(target, {"a": b"test"}, PASSWORD)
     assert not target.exists()
+
+
+def test_publish_failure_removes_staging_and_never_exposes_destination(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    def refuse_publish(source, destination):
+        assert source.is_dir()
+        assert not destination.exists()
+        raise OSError("synthetic simulated publishing failure")
+
+    monkeypatch.setattr(module.os, "rename", refuse_publish)
+    target = tmp_path / "never-published"
+    with pytest.raises(OSError, match="synthetic simulated"):
+        write_synthetic_encrypted_bundle(target, SYNTHETIC, PASSWORD)
+    assert not target.exists()
+    assert not list(tmp_path.iterdir())
+
+
+def test_encryption_failure_creates_no_staging_dir(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    def refuse_encryption(*args):
+        raise RuntimeError("synthetic encryption fault")
+
+    monkeypatch.setattr(module, "encrypt_synthetic_pair", refuse_encryption)
+    with pytest.raises(RuntimeError, match="synthetic encryption fault"):
+        write_synthetic_encrypted_bundle(tmp_path / "new-target", SYNTHETIC, PASSWORD)
+    assert not list(tmp_path.iterdir())
+
+
+def test_file_write_fault_removes_staging_without_publishing(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    original = module._exclusive_file
+    calls = 0
+
+    def faulty_write(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("synthetic disk write failure")
+        return original(*args)
+
+    monkeypatch.setattr(module, "_exclusive_file", faulty_write)
+    with pytest.raises(OSError, match="synthetic disk write failure"):
+        write_synthetic_encrypted_bundle(tmp_path / "bundle", SYNTHETIC, PASSWORD)
+    assert not list(tmp_path.iterdir())
+
+
+def test_failed_self_verification_cleans_staging(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    def verification_error(*args):
+        raise ValueError("synthetic self-verification failure")
+
+    monkeypatch.setattr(module, "read_synthetic_encrypted_bundle", verification_error)
+    with pytest.raises(ValueError, match="synthetic self-verification failure"):
+        write_synthetic_encrypted_bundle(tmp_path / "bundle", SYNTHETIC, PASSWORD)
+    assert not list(tmp_path.iterdir())
+
+
+def test_concurrent_destination_creation_fails_closed(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    original = module.read_synthetic_encrypted_bundle
+
+    def competing_process(path, password):
+        output = original(path, password)
+        (tmp_path / "bundle").mkdir()
+        (tmp_path / "bundle" / "keep.txt").write_text("external")
+        return output
+
+    monkeypatch.setattr(module, "read_synthetic_encrypted_bundle", competing_process)
+    with pytest.raises(ValueError, match="destination appeared"):
+        write_synthetic_encrypted_bundle(tmp_path / "bundle", SYNTHETIC, PASSWORD)
+    assert (tmp_path / "bundle" / "keep.txt").read_text() == "external"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["bundle"]
+
+
+def test_published_bundle_is_complete(tmp_path):
+    path = _bundle(tmp_path)
+    assert {p.name for p in path.iterdir()} == EXPECTED_NAMES
+    assert read_synthetic_encrypted_bundle(path, PASSWORD) == SYNTHETIC
+    assert not any(p.name.startswith(".phtech-synthetic-") for p in tmp_path.iterdir())
