@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import stat
+import tempfile
 from pathlib import Path
 
 from src.database.encrypted_backup_design import REQUIRED_FILES
@@ -56,17 +57,37 @@ def write_synthetic_encrypted_bundle(destination, payloads, passphrase):
                          ensure_ascii=True).encode("ascii")
     if len(encoded) > MAX_ENVELOPE_BYTES:
         raise ValueError("Synthetic envelope exceeded supported size.")
-    # Exclusive mkdir ensures parallel writers cannot replace each other.
-    target.mkdir(mode=0o700)
+    # Stage only ciphertext in a private sibling directory; never expose a
+    # partially written destination. Publish via same-filesystem rename.
+    staging = Path(tempfile.mkdtemp(prefix=".phtech-synthetic-", dir=target.parent))
+    published = False
     try:
         for name in sorted(REQUIRED_FILES):
-            _exclusive_file(target, CIPHERTEXT_NAMES[name], ciphertexts[name])
-        _exclusive_file(target, ENVELOPE_NAME, encoded)
-    except BaseException:
-        # Only remove files in our newly created destination; never follow
-        # symlinks or remove a pre-existing target.
-        shutil.rmtree(target)
-        raise
+            _exclusive_file(staging, CIPHERTEXT_NAMES[name], ciphertexts[name])
+        _exclusive_file(staging, ENVELOPE_NAME, encoded)
+        # Read back and authenticate both encrypted files before publication.
+        if read_synthetic_encrypted_bundle(staging, passphrase) != payloads:
+            raise ValueError("Synthetic bundle verification failed.")
+        if target.exists() or target.is_symlink():
+            raise ValueError("Synthetic destination appeared during staging.")
+        os.rename(staging, target)
+        published = True
+        # On POSIX, best effort parent directory fsync for durable directory
+        # entry publication. On Windows, no portable directory fsync exists.
+        if os.name == "posix":
+            try:
+                fd = os.open(target.parent, os.O_RDONLY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            except OSError:
+                # A durability limitation, never a reason to delete a
+                # successfully published encrypted bundle.
+                pass
+    finally:
+        if not published and staging.is_dir() and not staging.is_symlink():
+            shutil.rmtree(staging)
     return target
 
 
