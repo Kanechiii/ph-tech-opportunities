@@ -17,7 +17,7 @@ jobs:
       - name: Apply safe pull request metadata
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PR_METADATA_TOKEN }}
           script: |
             // Metadata only: never checkout or execute PR-controlled code.
             const owner = context.repo.owner;
