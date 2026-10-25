@@ -14,4 +14,4 @@ feedparser>=6.0.11,<7.0
 PyYAML>=6.0.2,<7.0
 
 # Authenticated encryption for Phase 13 synthetic backup-core tests
-cryptography>=44.0,<47.0
+cryptography>=50.0.2,<51.0
