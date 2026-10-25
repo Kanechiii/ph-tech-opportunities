@@ -200,3 +200,60 @@ def test_published_bundle_is_complete(tmp_path):
     assert {p.name for p in path.iterdir()} == EXPECTED_NAMES
     assert read_synthetic_encrypted_bundle(path, PASSWORD) == SYNTHETIC
     assert not any(p.name.startswith(".phtech-synthetic-") for p in tmp_path.iterdir())
+
+
+def test_no_follow_reader_rejects_symlink_directly(tmp_path):
+    import src.database.synthetic_encrypted_bundle as module
+
+    original = tmp_path / "original"
+    original.write_bytes(b"synthetic")
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(original)
+    except (NotImplementedError, OSError):
+        pytest.skip("Symlinks not supported by this environment")
+    with pytest.raises(ValueError):
+        module._read_regular_no_follow(link, 100)
+
+
+def test_no_follow_reader_rejects_oversized_regular_file(tmp_path):
+    import src.database.synthetic_encrypted_bundle as module
+
+    original = tmp_path / "oversized"
+    original.write_bytes(b"x" * 101)
+    with pytest.raises(ValueError):
+        module._read_regular_no_follow(original, 100)
+
+
+def test_no_follow_reader_rejects_missing_file(tmp_path):
+    import src.database.synthetic_encrypted_bundle as module
+
+    with pytest.raises(ValueError):
+        module._read_regular_no_follow(tmp_path / "not-there", 10)
+
+
+def test_no_follow_reader_detects_path_identity_substitution(tmp_path, monkeypatch):
+    import src.database.synthetic_encrypted_bundle as module
+
+    original = tmp_path / "original"
+    original.write_bytes(b"initial")
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"changed")
+    real_open = module.os.open
+
+    def swapped_open(path, flags, *args):
+        if str(path) == str(original):
+            original.unlink()
+            replacement.rename(original)
+        return real_open(path, flags, *args)
+
+    monkeypatch.setattr(module.os, "open", swapped_open)
+    with pytest.raises(ValueError, match="changed while reading"):
+        module._read_regular_no_follow(original, 100)
+
+
+def test_no_follow_reader_rejects_nonregular_directory(tmp_path):
+    import src.database.synthetic_encrypted_bundle as module
+
+    with pytest.raises(ValueError):
+        module._read_regular_no_follow(tmp_path, 100)
