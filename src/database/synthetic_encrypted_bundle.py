@@ -91,6 +91,46 @@ def write_synthetic_encrypted_bundle(destination, payloads, passphrase):
     return target
 
 
+
+def _read_regular_no_follow(path, maximum):
+    """Read bounded regular-file bytes without following final symlinks.
+
+    A descriptor-level check closes the stat-then-open symlink substitution
+    gap on platforms with O_NOFOLLOW. Platforms without that flag are
+    deliberately unsupported for this synthetic hardened reader.
+    """
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise ValueError("Secure synthetic file opening is unavailable.")
+    flags = os.O_RDONLY | os.O_NOFOLLOW
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        raise ValueError("Unsafe or unreadable synthetic bundle file.") from None
+    try:
+        with os.fdopen(fd, "rb") as stream:
+            opened = os.fstat(stream.fileno())
+            if not stat.S_ISREG(opened.st_mode) or opened.st_size > maximum:
+                raise ValueError("Unsafe or oversized synthetic bundle file.")
+            data = stream.read(maximum + 1)
+            if len(data) > maximum:
+                raise ValueError("Oversized synthetic bundle file.")
+            # If a concurrent actor changed the pathname, reject the read.
+            named = path.lstat()
+            if (named.st_dev, named.st_ino) != (opened.st_dev, opened.st_ino):
+                raise ValueError("Synthetic bundle file changed while reading.")
+            after = os.fstat(stream.fileno())
+            if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) != (
+                opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns
+            ):
+                raise ValueError("Synthetic bundle file mutated while reading.")
+            return data
+    except (OSError, FileNotFoundError):
+        raise ValueError("Unsafe or unreadable synthetic bundle file.") from None
+
 def read_synthetic_encrypted_bundle(directory, passphrase):
     """Verify an isolated synthetic ciphertext directory, return bytes only.
 
@@ -106,17 +146,18 @@ def read_synthetic_encrypted_bundle(directory, passphrase):
         if not item.is_file() or item.is_symlink() or not stat.S_ISREG(item.lstat().st_mode):
             raise ValueError("Unsafe synthetic bundle entry.")
     envelope_path = directory / ENVELOPE_NAME
-    if envelope_path.stat().st_size > MAX_ENVELOPE_BYTES:
-        raise ValueError("Oversized synthetic envelope.")
     try:
-        metadata = json.loads(envelope_path.read_text(encoding="ascii"))
-    except (UnicodeError, ValueError) as error:
+        metadata = json.loads(
+            _read_regular_no_follow(envelope_path, MAX_ENVELOPE_BYTES)
+            .decode("ascii")
+        )
+    except (UnicodeError, ValueError):
         raise ValueError("Invalid synthetic envelope.") from None
 
     ciphertexts = {}
     for name in sorted(REQUIRED_FILES):
         path = directory / CIPHERTEXT_NAMES[name]
-        if path.stat().st_size > MAX_SYNTHETIC_BYTES_PER_FILE + 16:
-            raise ValueError("Oversized synthetic ciphertext.")
-        ciphertexts[name] = path.read_bytes()
+        ciphertexts[name] = _read_regular_no_follow(
+            path, MAX_SYNTHETIC_BYTES_PER_FILE + 16
+        )
     return decrypt_synthetic_pair(metadata, ciphertexts, passphrase)
