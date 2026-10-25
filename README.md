@@ -109,7 +109,7 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 
 ## Development roadmap
 
-**Completed:** Phases 1–12, within their explicitly bounded development and safety scopes. Completion **does not mean production readiness**. No Phase 13 work has started.
+**Completed:** Phases 1–12 within their bounded development and safety scopes. **Phase 13 is in progress** (synthetic in-memory encryption prototype under review). Completion **does not mean production readiness**.
 
 | Phase | Status | Delivered scope |
 |---|---|---|
@@ -128,11 +128,11 @@ Approval and rejection require authenticated local reviewer accounts. Administra
 
 ### Remaining work — not started or not approved
 
-These are **proposed workstreams, not completed phases or authorized deployment actions**:
+These are **remaining workstreams, not completed or authorized production deployment actions**:
 
 | Priority | Proposed work | Required result |
 |---|---|---|
-| Next (Phase 13 proposal) | Encrypted backups and independent recovery | Implement authenticated encryption, isolated decryption/restore, and end-to-end tamper tests; retain existing backups |
+| Current (Phase 13 in progress) | Encrypted backups and independent recovery | Synthetic in-memory AES-GCM prototype under review; file-based encrypted backup, isolated decryption/restore and recovery drills remain unimplemented |
 | Critical | Source reconciliation and migration | Resolve local/hosted SQLite divergence, preserve append-only histories and `sent`/`uncertain` jobs; verify real-data import only after separate authorization |
 | Critical | PostgreSQL application adapter | Least-privilege runtime integration, credential rotation, consistency validation, rollback drills and explicit cutover approval |
 | High | Authentication and file security | Reviewer account recovery/session defenses, Windows ACL checks, tamper-resistant storage boundaries |
@@ -141,9 +141,9 @@ These are **proposed workstreams, not completed phases or authorized deployment 
 
 **Safety boundary:** Do not auto-resolve ambiguous deliveries; modify original review/account audits; upload private SQLite files; treat Neon staging as production; switch runtime backends; or enable scheduled reviewed-opportunity email delivery without separate explicit authorization.
 
-### Pull requests and phase tracking
+### Pull request conventions
 
-Project PR titles follow **Conventional Commits**: `type(scope): short imperative description` (for example, `fix(auth): serialize review authorization`). **Do not put phase or step numbers in titles**; associate the PR with a `phase:NN` label instead. PR descriptions use short **Scope / Validation / Safety** sections. PRs are assigned to [@Kanechiii](https://github.com/Kanechiii); a metadata-only workflow adds future assignments and phase labels from branch names such as `phase13/step1-something`. Dependabot's conventional titles and original changelogs are preserved.
+Use **Conventional Commits** titles: `type(scope): concise description`. PR descriptions should briefly cover **Scope / Validation / Safety**. Assignment and phase labels are **manual and optional**; no workflow automatically assigns owners or applies phase labels. Existing historical pull requests and commits are retained for provenance.
 
 **No extra services, paid APIs, or automatic reviewed-email delivery are required to run this project.**
 
