@@ -202,58 +202,67 @@ def test_published_bundle_is_complete(tmp_path):
     assert not any(p.name.startswith(".phtech-synthetic-") for p in tmp_path.iterdir())
 
 
-def test_no_follow_reader_rejects_symlink_directly(tmp_path):
-    import src.database.synthetic_encrypted_bundle as module
-
-    original = tmp_path / "original"
-    original.write_bytes(b"synthetic")
-    link = tmp_path / "link"
+def test_hard_linked_ciphertext_rejected(tmp_path):
+    import os
+    path = _bundle(tmp_path)
+    source = path / CIPHERTEXT_NAMES["opportunities.sqlite3"]
+    other = tmp_path / "linked-encrypted-file"
     try:
-        link.symlink_to(original)
+        os.link(source, other)
     except (NotImplementedError, OSError):
-        pytest.skip("Symlinks not supported by this environment")
-    with pytest.raises(ValueError):
-        module._read_regular_no_follow(link, 100)
+        pytest.skip("Hard link creation unavailable")
+    with pytest.raises(ValueError, match="Unsafe synthetic bundle entry"):
+        read_synthetic_encrypted_bundle(path, PASSWORD)
 
 
-def test_no_follow_reader_rejects_oversized_regular_file(tmp_path):
+def test_symlinked_ancestor_rejected(tmp_path):
+    real = tmp_path / "real-parent"
+    real.mkdir()
+    write_synthetic_encrypted_bundle(real / "bundle", SYNTHETIC, PASSWORD)
+    linked_parent = tmp_path / "linked-parent"
+    try:
+        linked_parent.symlink_to(real, target_is_directory=True)
+    except (NotImplementedError, OSError):
+        pytest.skip("Parent symlink creation unavailable")
+    with pytest.raises(ValueError, match="Symbolic-link paths"):
+        read_synthetic_encrypted_bundle(linked_parent / "bundle", PASSWORD)
+    with pytest.raises(ValueError, match="Symbolic-link paths"):
+        write_synthetic_encrypted_bundle(linked_parent / "new", SYNTHETIC, PASSWORD)
+    assert not (real / "new").exists()
+
+
+def test_oversized_ciphertext_rejected_before_unbounded_read(tmp_path):
+    from src.database.synthetic_encryption_core import MAX_SYNTHETIC_BYTES_PER_FILE
+    path = _bundle(tmp_path)
+    encrypted = path / CIPHERTEXT_NAMES["opportunities.sqlite3"]
+    with encrypted.open("wb") as output:
+        output.truncate(MAX_SYNTHETIC_BYTES_PER_FILE + 17)
+    with pytest.raises(ValueError, match="Oversized synthetic bundle entry"):
+        read_synthetic_encrypted_bundle(path, PASSWORD)
+
+
+def test_oversized_envelope_rejected(tmp_path):
+    from src.database.synthetic_encrypted_bundle import MAX_ENVELOPE_BYTES
+    path = _bundle(tmp_path)
+    with (path / ENVELOPE_NAME).open("wb") as output:
+        output.truncate(MAX_ENVELOPE_BYTES + 1)
+    with pytest.raises(ValueError, match="Oversized synthetic bundle entry"):
+        read_synthetic_encrypted_bundle(path, PASSWORD)
+
+
+def test_replacement_between_stat_and_open_rejected(tmp_path, monkeypatch):
     import src.database.synthetic_encrypted_bundle as module
 
-    original = tmp_path / "oversized"
-    original.write_bytes(b"x" * 101)
-    with pytest.raises(ValueError):
-        module._read_regular_no_follow(original, 100)
+    path = _bundle(tmp_path)
+    original_open = module.os.open
+    affected = path / CIPHERTEXT_NAMES["opportunities.sqlite3"]
 
+    def race_open(p, flags, *args, **kwargs):
+        if str(p) == str(affected):
+            affected.unlink()
+            affected.write_bytes(b"x" * 30)
+        return original_open(p, flags, *args, **kwargs)
 
-def test_no_follow_reader_rejects_missing_file(tmp_path):
-    import src.database.synthetic_encrypted_bundle as module
-
-    with pytest.raises(ValueError):
-        module._read_regular_no_follow(tmp_path / "not-there", 10)
-
-
-def test_no_follow_reader_detects_path_identity_substitution(tmp_path, monkeypatch):
-    import src.database.synthetic_encrypted_bundle as module
-
-    original = tmp_path / "original"
-    original.write_bytes(b"initial")
-    replacement = tmp_path / "replacement"
-    replacement.write_bytes(b"changed")
-    real_open = module.os.open
-
-    def swapped_open(path, flags, *args):
-        if str(path) == str(original):
-            original.unlink()
-            replacement.rename(original)
-        return real_open(path, flags, *args)
-
-    monkeypatch.setattr(module.os, "open", swapped_open)
-    with pytest.raises(ValueError, match="changed while reading"):
-        module._read_regular_no_follow(original, 100)
-
-
-def test_no_follow_reader_rejects_nonregular_directory(tmp_path):
-    import src.database.synthetic_encrypted_bundle as module
-
-    with pytest.raises(ValueError):
-        module._read_regular_no_follow(tmp_path, 100)
+    monkeypatch.setattr(module.os, "open", race_open)
+    with pytest.raises(ValueError, match="Unsafe synthetic bundle entry"):
+        read_synthetic_encrypted_bundle(path, PASSWORD)

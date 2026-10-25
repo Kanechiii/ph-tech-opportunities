@@ -18,8 +18,8 @@ The synthetic bundle writer now encrypts in memory, writes **ciphertext only** i
 Successful synthetic CI is acceptance of this narrow development test only, never proof of secure backup confidentiality or production disaster recovery.
 
 
-## Step 4: descriptor-bound synthetic file validation
+## Step 4: bounded synthetic reads and link checks
 
-The bundle reader now bounds ciphertext/envelope data while reading, verifies that opened descriptors refer to regular files, and compares pre-open, post-open, and post-read file identities. It refuses symbolic-link entries, missing entries, oversized files, nonregular files and simulated file substitution. On platforms implementing `O_NOFOLLOW`, final-path symlink following is denied at `os.open`; on Windows the available checks are only best-effort and do not prove race-free behavior.
+The synthetic reader now refuses any path containing a symbolic-link ancestor, requires each encrypted file and manifest to be a **single-linked regular file**, and reads through bounded file descriptors using `lstat`, `fstat`, inode/size comparisons, and `O_NOFOLLOW` on platforms that expose it. The check limits the amount of ciphertext and envelope data loaded into memory. New offline tests cover hard links, linked parents, oversized ciphertext and metadata, and file replacement between preliminary metadata inspection and opening.
 
-**Security boundary:** This is not safe for adversarially writable parent directories and not a replacement for Windows secure handle flags, ACL verification, intermediate-path checks, atomic no-replace publication, interruption cleanup, or trusted private backup storage. No operational SQLite or reviewer-account file has been opened. Existing format-v1 backups and SMTP safeguards are untouched. A future step must address platform-specific filesystem primitives and controlled synthetic end-to-end recovery before any real-data use.
+**Residual risk:** This does not make paths or publication atomic against hostile concurrent writers. Windows security descriptors, inherited NTFS ACLs, process interruption, intermediate directory replacement, platform-specific atomic no-replace publication, and durability semantics still require independent verification. Consequently **only synthetic test fixtures are permitted**; no operational backup or recovery CLI is exposed.
