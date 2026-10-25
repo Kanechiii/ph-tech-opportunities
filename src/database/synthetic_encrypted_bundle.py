@@ -150,10 +150,9 @@ def read_synthetic_encrypted_bundle(directory, passphrase):
         if not item.is_file() or item.is_symlink() or not stat.S_ISREG(item.lstat().st_mode):
             raise ValueError("Unsafe synthetic bundle entry.")
     envelope_path = directory / ENVELOPE_NAME
+    encoded = _bounded_regular_read(envelope_path, MAX_ENVELOPE_BYTES)
     try:
-        metadata = json.loads(
-            _bounded_regular_read(envelope_path, MAX_ENVELOPE_BYTES).decode("ascii")
-        )
+        metadata = json.loads(encoded.decode("ascii"))
     except (UnicodeError, ValueError) as error:
         raise ValueError("Invalid synthetic envelope.") from None
 
