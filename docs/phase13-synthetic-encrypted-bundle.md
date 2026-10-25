@@ -16,3 +16,10 @@ The synthetic bundle writer now encrypts in memory, writes **ciphertext only** i
 **Limitations not yet solved:** a concurrent actor can race the final existence check; portable Python `os.rename` does not guarantee *no replacement* of an attacker-created empty destination directory on every platform. Therefore the parent directory must be under exclusive trusted ownership; the implementation is **not approved for hostile/shared directories or real backups**. Power failure durability, directory fsync on Windows, NTFS ACL verification, hard links, path traversal via intermediate symlinks, interruption before cleanup, secure erase of temporary ciphertext, and malicious filesystem mutation remain unverified. A platform-specific atomic no-replace publication primitive and comprehensive filesystem threat tests are required before operational use.
 
 Successful synthetic CI is acceptance of this narrow development test only, never proof of secure backup confidentiality or production disaster recovery.
+
+
+## Step 4: descriptor-bound synthetic file validation
+
+The bundle reader now bounds ciphertext/envelope data while reading, verifies that opened descriptors refer to regular files, and compares pre-open, post-open, and post-read file identities. It refuses symbolic-link entries, missing entries, oversized files, nonregular files and simulated file substitution. On platforms implementing `O_NOFOLLOW`, final-path symlink following is denied at `os.open`; on Windows the available checks are only best-effort and do not prove race-free behavior.
+
+**Security boundary:** This is not safe for adversarially writable parent directories and not a replacement for Windows secure handle flags, ACL verification, intermediate-path checks, atomic no-replace publication, interruption cleanup, or trusted private backup storage. No operational SQLite or reviewer-account file has been opened. Existing format-v1 backups and SMTP safeguards are untouched. A future step must address platform-specific filesystem primitives and controlled synthetic end-to-end recovery before any real-data use.
