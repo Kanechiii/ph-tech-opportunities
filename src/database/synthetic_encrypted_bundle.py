@@ -28,6 +28,48 @@ EXPECTED_NAMES = frozenset({ENVELOPE_NAME, *CIPHERTEXT_NAMES.values()})
 MAX_ENVELOPE_BYTES = 8192
 
 
+
+def _reject_symlink_ancestors(path):
+    """Reject symlinks in the target path and every existing parent."""
+    for entry in (path, *path.parents):
+        if entry.is_symlink():
+            raise ValueError("Symbolic-link paths are not permitted.")
+
+
+def _bounded_regular_read(path, limit):
+    """Read only a stable, single-linked regular file, within a fixed bound.
+
+    This is defense in depth for synthetic files, not a guarantee against
+    adversarial concurrent filesystem mutation on every operating system.
+    """
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+        raise ValueError("Unsafe synthetic bundle entry.")
+    if before.st_size > limit:
+        raise ValueError("Oversized synthetic bundle entry.")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    fd = os.open(path, flags)
+    try:
+        opened = os.fstat(fd)
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1
+                or opened.st_size > limit
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)):
+            raise ValueError("Unsafe synthetic bundle entry.")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            data = stream.read(limit + 1)
+        after = os.fstat(fd)
+        if (len(data) > limit or len(data) != opened.st_size
+                or (opened.st_dev, opened.st_ino) != (after.st_dev, after.st_ino)
+                or opened.st_size != after.st_size or after.st_nlink != 1):
+            raise ValueError("Synthetic bundle entry changed during read.")
+        return data
+    finally:
+        os.close(fd)
+
 def _exclusive_file(folder, name, contents):
     # Exclusive creation; refuse symlinks and existing files.
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -47,6 +89,7 @@ def write_synthetic_encrypted_bundle(destination, payloads, passphrase):
     supported inputs are synthetic fixtures; real backup use is not approved.
     """
     target = Path(destination).absolute()
+    _reject_symlink_ancestors(target)
     # Fail before encryption rather than risk leaving behind partial targets.
     if target.exists() or target.is_symlink() or not target.parent.is_dir():
         raise ValueError("Invalid or existing synthetic bundle destination.")
@@ -97,6 +140,7 @@ def read_synthetic_encrypted_bundle(directory, passphrase):
     Does not write plaintext, restore SQLite, or modify existing artifacts.
     """
     directory = Path(directory).absolute()
+    _reject_symlink_ancestors(directory)
     if not directory.is_dir() or directory.is_symlink():
         raise ValueError("Invalid synthetic bundle directory.")
     entries = list(directory.iterdir())
@@ -106,17 +150,17 @@ def read_synthetic_encrypted_bundle(directory, passphrase):
         if not item.is_file() or item.is_symlink() or not stat.S_ISREG(item.lstat().st_mode):
             raise ValueError("Unsafe synthetic bundle entry.")
     envelope_path = directory / ENVELOPE_NAME
-    if envelope_path.stat().st_size > MAX_ENVELOPE_BYTES:
-        raise ValueError("Oversized synthetic envelope.")
     try:
-        metadata = json.loads(envelope_path.read_text(encoding="ascii"))
+        metadata = json.loads(
+            _bounded_regular_read(envelope_path, MAX_ENVELOPE_BYTES).decode("ascii")
+        )
     except (UnicodeError, ValueError) as error:
         raise ValueError("Invalid synthetic envelope.") from None
 
     ciphertexts = {}
     for name in sorted(REQUIRED_FILES):
         path = directory / CIPHERTEXT_NAMES[name]
-        if path.stat().st_size > MAX_SYNTHETIC_BYTES_PER_FILE + 16:
-            raise ValueError("Oversized synthetic ciphertext.")
-        ciphertexts[name] = path.read_bytes()
+        ciphertexts[name] = _bounded_regular_read(
+            path, MAX_SYNTHETIC_BYTES_PER_FILE + 16
+        )
     return decrypt_synthetic_pair(metadata, ciphertexts, passphrase)
