@@ -1,5 +1,5 @@
 # Environment variable management
-python-dotenv>=1.0,<2.0
+python-dotenv>=1.2.4,<2.0
 
 # Automated testing
 pytest>=8.0,<10.0
