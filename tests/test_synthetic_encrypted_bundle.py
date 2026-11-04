@@ -264,5 +264,7 @@ def test_replacement_between_stat_and_open_rejected(tmp_path, monkeypatch):
         return original_open(p, flags, *args, **kwargs)
 
     monkeypatch.setattr(module.os, "open", race_open)
-    with pytest.raises(ValueError, match="Unsafe synthetic bundle entry"):
+    # Some filesystems reuse the inode after replacement; authentication
+    # must still reject the substituted ciphertext in that case.
+    with pytest.raises(ValueError, match="Unsafe synthetic bundle entry|Authenticated synthetic decryption failed"):
         read_synthetic_encrypted_bundle(path, PASSWORD)
